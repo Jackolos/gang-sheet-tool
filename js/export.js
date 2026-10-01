@@ -28,7 +28,35 @@ function renderSheetCanvas(sheet, items, s) {
   const ctx = c.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
   if (s.mirror) { ctx.translate(W, 0); ctx.scale(-1, 1); }  // waagerecht spiegeln
-  for (const p of sheet.placed) drawPiece(ctx, items[p.k].img, p, pxPerMm);
+  const hard = new Map();   // pro Motiv/Drehung/Größe nur einmal rechnen (bei vielen Kopien)
+  for (const p of sheet.placed) {
+    const it = items[p.k];
+    if (!(it.ht && it.ht.on) && !it.hardAlpha) { drawPiece(ctx, it.img, p, pxPerMm); continue; }
+    // Halftone / „Halbtransparenz beheben“: Beim normalen Zeichnen auf eine Position zwischen zwei Pixeln
+    // glättet der Browser die Kanten, und jeder Punkt bekäme wieder einen halbtransparenten Rand
+    // (gemessen: 28 % der Farbpixel). Deshalb in Druckgröße vorbereiten, hart machen und pixelgenau setzen.
+    const w = Math.round(p.w * pxPerMm), h = Math.round(p.h * pxPerMm), key = `${p.k}|${p.rot || 0}|${w}|${h}`;
+    if (!hard.has(key)) hard.set(key, hardPiece(it.img, p, w, h));
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(hard.get(key), Math.round(p.x * pxPerMm), Math.round(p.y * pxPerMm));
+    ctx.restore();
+  }
+  for (const h of hard.values()) h.width = h.height = 0;   // Speicher freigeben
+  return c;
+}
+
+// Zeichnet ein Motiv in genau w × h Pixeln (schon gedreht) und setzt jeden Pixel auf ganz deckend
+// oder ganz durchsichtig (Schwelle 50 %).
+function hardPiece(img, p, w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  drawPiece(ctx, img, { x: 0, y: 0, w, h, rot: p.rot }, 1);
+  const data = ctx.getImageData(0, 0, w, h), d = data.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= 128 ? 255 : 0;
+  ctx.putImageData(data, 0, 0);
   return c;
 }
 

@@ -69,14 +69,20 @@ function eachComponent(mask, W, H, onComp) {
 }
 
 function runPrintCheck(it) {
-  // Halftone: Das Bild besteht absichtlich aus winzigen, voll deckenden Punkten. Die normalen Prüfungen
-  // würden jeden Punkt melden; stattdessen zählt nur, ob der kleinste Punkt groß genug ist (checkMessages).
-  if (it.ht && it.ht.on) {
-    const ov = document.createElement('canvas');
-    ov.width = ov.height = 1;
-    return { thin: 0, semi: 0, specks: 0, halftone: true, overlay: ov };
-  }
   const { w: wmm, h: hmm } = motifMm(it);
+  // Halftone: Das Bild besteht absichtlich aus kleinen Punkten. Statt der normalen Prüfungen wird das
+  // fertige Raster nachgemessen (htcheck.js): zu kleine Punkte, zu kleine Löcher, Halbtransparenz.
+  if (it.ht && it.ht.on) {
+    if (it.img === it.base) return null;   // Raster wird gerade noch berechnet
+    const res = analyzePrint(it.img, it.img.width / wmm, { maxPixels: 12e6 });
+    const ow = Math.max(1, Math.ceil(wmm)), oh = Math.max(1, Math.ceil(hmm));
+    const ov = document.createElement('canvas');
+    ov.width = ow; ov.height = oh;
+    const octx = ov.getContext('2d'), pxPerMm = it.img.width / wmm;
+    octx.fillStyle = 'rgba(200,0,200,.85)';
+    for (const p of res.points) octx.fillRect(Math.floor(p.x / pxPerMm) - 1, Math.floor(p.y / pxPerMm) - 1, 3, 3);
+    return { thin: 0, semi: 0, specks: 0, halftone: res, overlay: ov };
+  }
   // Immer mit (bis zu) 10 Pixeln pro mm rechnen, auch wenn das Original gröber ist: Beim Hochrechnen
   // entstehen weiche Übergänge, an denen sich die echte Kante genauer messen lässt als an groben Pixeln.
   const ppm = Math.min(10, Math.sqrt(CONFIG.checkMaxPixels / (wmm * hmm)));
@@ -196,7 +202,9 @@ function scheduleChecks() {
       if (it.check && it.check.key === key) continue;
       await new Promise(r => setTimeout(r, 0));          // Seite zwischendurch reagieren lassen
       if (!state.items.includes(it)) continue;
-      it.check = { key, ...runPrintCheck(it) };
+      const result = runPrintCheck(it);
+      if (!result) continue;   // später noch einmal (Halftone noch nicht fertig)
+      it.check = { key, ...result };
       const row = rowOf(it);
       if (row) refreshCheck(row, it);
     }
@@ -209,8 +217,10 @@ function checkMessages(it) {
   const c = it.check, out = [];
   if (!c) return out;
   if (c.halftone) {
-    const { minDot } = halftoneInfo(it.ht);
-    if (minDot < CONFIG.minLineMm) out.push(`Halftone: Der kleinste Punkt (ca. ${minDot.toFixed(2).replace('.', ',')} mm) ist kleiner als ${String(CONFIG.minLineMm).replace('.', ',')} mm und kann beim Übertragen verloren gehen.`);
+    // nachgemessenes Raster: Probleme melden (Details mit Lupe über „Prüfen“)
+    const v = c.halftone.verdict;
+    for (const t of [...v.bad, ...v.warn]) out.push('Halftone: ' + t.replace(/ \((blau|rot|lila|orange) markiert\)/, ''));
+    if (out.length) out.push('Mit „Prüfen“ lassen sich die Stellen vergrößert ansehen.');
     return out;
   }
   if (c.thin) out.push(`Feine Linien/Details unter ${String(CONFIG.minLineMm).replace('.', ',')} mm (rot markiert) drucken oft nicht sauber. Motiv größer machen oder Linien verstärken.`);

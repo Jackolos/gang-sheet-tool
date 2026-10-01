@@ -254,6 +254,7 @@ function renderList() {
           <button class="mini ghost" data-fill title="Freien Platz auf den Blättern mit Kopien dieses Motivs füllen"><svg class="i"><use href="#i-fill"/></svg>Auffüllen</button>
           <button class="mini ghost" data-dup title="Als eigenen Eintrag kopieren, z. B. für eine zweite Größe"><svg class="i"><use href="#i-dup"/></svg>Duplizieren</button>
           <button class="mini ghost" data-mock title="Motiv in echter Größe auf T-Shirt, Polo, Pulli, Hoodie oder Cap ansehen"><svg class="i"><use href="#i-shirt"/></svg>Vorschau</button>
+          <button class="mini ghost" data-inspect title="So prüfen, wie es gedruckt wird: Punkte, Löcher, Halbtransparenz, mit Lupe"><svg class="i"><use href="#i-scan"/></svg>Prüfen</button>
         </div>
         <div class="bgctl">
           <label class="check"><input type="checkbox" data-field="bgOn" ${it.bg.on ? 'checked' : ''} ${it.bgInfo ? '' : 'disabled'}> <span>Hintergrund entfernen <span class="bgcolor">(erkannt: <i class="swatch"></i>)</span></span></label>
@@ -278,23 +279,46 @@ function renderList() {
         <div class="htctl">
           <label class="check"><input type="checkbox" data-field="htOn" ${it.ht.on ? 'checked' : ''}> <span>Halftone (Raster) <small>Verläufe bzw. eine Farbe als Punkte drucken</small></span></label>
           <div class="htopts" ${it.ht.on ? '' : 'hidden'}>
+            <div class="htpresets">${HT_PRESETS.map(p => `<button class="mini ghost" data-htpreset="${p.id}">${p.name}</button>`).join('')}</div>
             <label>Modus<select data-field="htMode">
-              <option value="alpha" ${it.ht.mode === 'alpha' ? 'selected' : ''}>Halbtransparenz → Punkte</option>
-              <option value="color" ${it.ht.mode === 'color' ? 'selected' : ''}>Farbe ausstanzen → Punkte</option>
+              <option value="alpha" ${it.ht.mode === 'alpha' ? 'selected' : ''}>Halbtransparenz → Punkte (Schatten, Verläufe)</option>
+              <option value="color" ${it.ht.mode === 'color' ? 'selected' : ''}>Farbe ausstanzen → Punkte (Shirtfarbe)</option>
+              <option value="luma" ${it.ht.mode === 'luma' ? 'selected' : ''}>Helligkeit → Punkte (Fotos)</option>
             </select></label>
             <div class="htcolor" ${it.ht.mode === 'color' ? '' : 'hidden'}>
-              <label class="colorpick">Ausgestanzte Farbe <input type="color" data-field="htColor" value="${it.ht.color}"></label>
-              <label>Stärke: <output data-out="htStrength">${it.ht.strength}</output>
+              <label class="colorpick">Ausgestanzte Farbe (= Shirtfarbe) <input type="color" data-field="htColor" value="${it.ht.color}"></label>
+              <div class="htsw">${(typeof SHIRT_COLORS === 'undefined' ? [] : SHIRT_COLORS).map(([n, c]) => `<button class="sw" data-htshirt="${c}" title="${n}" style="background:${c}"></button>`).join('')}
+                <button class="mini ghost" data-htmock title="Farbe aus der Textil-Vorschau übernehmen">aus Vorschau</button></div>
+              <label>Stärke: <output data-out="htStrength">${it.ht.strength}</output> <small>(wie weit ähnliche Farben mit ausgestanzt werden)</small>
                 <input type="range" data-field="htStrength" min="0" max="100" step="1" value="${it.ht.strength}"></label>
             </div>
-            <label>Rasterweite: <output data-out="htLpi">${it.ht.lpi}</output> lpi <small>(Punkte pro Zoll)</small>
-              <input type="range" data-field="htLpi" min="15" max="45" step="1" value="${it.ht.lpi}"></label>
-            <label>Kleinster Punkt: <output data-out="htMin">${it.ht.min}</output> %
-              <input type="range" data-field="htMin" min="5" max="35" step="1" value="${it.ht.min}"></label>
-            <label>Winkel<select data-field="htAngle">
-              ${[22.5, 45, 0].map(a => `<option value="${a}" ${it.ht.angle === a ? 'selected' : ''}>${String(a).replace('.', ',')}°</option>`).join('')}
+            <label class="check htluma" ${it.ht.mode === 'luma' ? '' : 'hidden'}><input type="checkbox" data-field="htInvert" ${it.ht.invert ? 'checked' : ''}> <span>Umkehren <small>helle Stellen drucken (für dunkle Shirts, z. B. mit weißer Druckfarbe)</small></span></label>
+            <label>Punktform<select data-field="htShape">
+              ${Object.entries(HT_SHAPES).map(([k, s]) => `<option value="${k}" ${it.ht.shape === k ? 'selected' : ''}>${s.name}</option>`).join('')}
             </select></label>
+            <label>Rasterweite: <output data-out="htLpi">${it.ht.lpi}</output> lpi <small>(Punkte pro Zoll, DTF-sicher: 20–35)</small>
+              <input type="range" data-field="htLpi" min="10" max="45" step="1" value="${it.ht.lpi}"></label>
+            <label>Kleinster Punkt und Loch: <output data-out="htMinMm">${String(it.ht.minMm).replace('.', ',')}</output> mm <small>(MAVI: mind. 0,4)</small>
+              <input type="range" data-field="htMinMm" min="0.3" max="1.2" step="0.05" value="${it.ht.minMm}"></label>
+            <label>Tonwert: <output data-out="htTone">${it.ht.tone}</output> <small>(− weniger, + mehr Farbe)</small>
+              <input type="range" data-field="htTone" min="-50" max="50" step="1" value="${it.ht.tone}"></label>
+            <label>Fester Rand: <output data-out="htEdgeMm">${String(it.ht.edgeMm).replace('.', ',')}</output> mm <small>(Kontur bleibt geschlossen, 0 = aus)</small>
+              <input type="range" data-field="htEdgeMm" min="0" max="3" step="0.25" value="${it.ht.edgeMm}"></label>
+            <div class="grid">
+              <label>Winkel<select data-field="htAngle">
+                ${[22.5, 45, 15, 75, 0].map(a => `<option value="${a}" ${it.ht.angle === a ? 'selected' : ''}>${String(a).replace('.', ',')}°</option>`).join('')}
+              </select></label>
+              <label>Druckfarbe<select data-field="htInk">
+                <option value="original" ${it.ht.ink !== 'mono' ? 'selected' : ''}>Originalfarben</option>
+                <option value="mono" ${it.ht.ink === 'mono' ? 'selected' : ''}>Einfarbig</option>
+              </select></label>
+            </div>
+            <label class="colorpick htinkc" ${it.ht.ink === 'mono' ? '' : 'hidden'}>Farbe für den Druck <input type="color" data-field="htInkColor" value="${it.ht.inkColor}"></label>
             <small class="htinfo"></small>
+            <div class="btnwrap">
+              <button class="mini ghost" data-htopt title="Feinste Rasterweite wählen, bei der Punkte und Löcher groß genug bleiben">Optimal einstellen</button>
+              <button class="mini ghost" data-htall title="Diese Halftone-Einstellungen für alle Motive übernehmen">Auf alle Motive anwenden</button>
+            </div>
           </div>
         </div>
         <div class="pcheck"></div>
@@ -340,16 +364,46 @@ function refreshRow(row, it) {
 }
 
 // Halftone-Bereich einer Zeile: Optionen ein-/ausblenden, Werte und Punktgröße anzeigen
+// Halftone-Felder (data-field) ↔ Schlüssel in it.ht
+const HT_FIELDS = { htOn: 'on', htMode: 'mode', htColor: 'color', htStrength: 'strength', htInvert: 'invert', htShape: 'shape',
+  htLpi: 'lpi', htMinMm: 'minMm', htTone: 'tone', htEdgeMm: 'edgeMm', htAngle: 'angle', htInk: 'ink', htInkColor: 'inkColor' };
+
 function refreshHalftoneUi(row, it) {
   const ht = it.ht;
   row.querySelector('.htopts').hidden = !ht.on;
   row.querySelector('.htcolor').hidden = ht.mode !== 'color';
-  for (const o of row.querySelectorAll('[data-out]')) o.textContent = ht[o.dataset.out.slice(2).toLowerCase()];
-  const { cell, minDot } = halftoneInfo(ht), mm = v => v.toFixed(2).replace('.', ',');
-  const el = row.querySelector('.htinfo'), tooSmall = minDot < CONFIG.minLineMm;
-  el.textContent = `Punktabstand ${mm(cell)} mm, kleinster Punkt ca. ${mm(minDot)} mm` +
-    (tooSmall ? ` – unter ${String(CONFIG.minLineMm).replace('.', ',')} mm (MAVI-Mindeststärke). Rasterweite senken oder kleinsten Punkt erhöhen.` : '');
-  el.classList.toggle('low', tooSmall);
+  row.querySelector('.htluma').hidden = ht.mode !== 'luma';
+  row.querySelector('.htinkc').hidden = ht.ink !== 'mono';
+  for (const o of row.querySelectorAll('[data-out]')) o.textContent = String(ht[HT_FIELDS[o.dataset.out]]).replace('.', ',');
+  for (const b of row.querySelectorAll('[data-htshirt]')) b.classList.toggle('on', b.dataset.htshirt.toLowerCase() === ht.color.toLowerCase());
+  const i = halftoneInfo(ht), mm = v => v.toFixed(2).replace('.', ','), pct = v => Math.round(v * 100) + ' %';
+  const el = row.querySelector('.htinfo');
+  const tooSmall = Math.min(i.minDot, i.minGap) < CONFIG.minLineMm - 0.005;
+  let text = `Punktabstand ${mm(i.cell)} mm · gerastert wird zwischen ${pct(i.minC)} und ${pct(i.maxC)} Deckung, ` +
+    `darunter bleibt es frei, darüber wird voll gedruckt.`;
+  if (i.squeezed) text = `Rasterweite zu fein für ${mm(ht.minMm)} mm: Punkt und Loch passen nicht in eine Rasterzelle (${mm(i.cell)} mm). ` +
+    `Es wird nur noch hart ab 50 % gedruckt. Rasterweite senken oder „Optimal einstellen“.`;
+  else if (tooSmall) text += ` Achtung: kleiner als ${String(CONFIG.minLineMm).replace('.', ',')} mm (MAVI-Mindeststärke).`;
+  if (it.img !== it.base && it.htKey) {
+    const saved = 1 - it.coverage / Math.max(1e-6, opaqueShare(it.base));
+    if (saved > 0.01) text += ` Bedruckte Fläche ${pct(saved)} kleiner als ohne Raster (weicher, atmungsaktiver).`;
+  }
+  el.textContent = text;
+  el.classList.toggle('low', i.squeezed || tooSmall);
+}
+
+// Halftone-Werte setzen (aus einer Vorlage, „Optimal“ oder „Auf alle“) und neu rechnen
+function setHalftone(it, values) {
+  Object.assign(it.ht, values);
+  const row = rowOf(it);
+  if (row) {
+    for (const [field, key] of Object.entries(HT_FIELDS)) {
+      const el = row.querySelector(`[data-field="${field}"]`);
+      if (!el) continue;
+      if (el.type === 'checkbox') el.checked = !!it.ht[key]; else el.value = it.ht[key];
+    }
+    refreshHalftoneUi(row, it);
+  }
 }
 
 $('list').addEventListener('input', e => {
@@ -362,8 +416,8 @@ $('list').addEventListener('input', e => {
   if (field === 'sizeRef') it.sizeRef = e.target.value;
   if (field.startsWith('ht')) {
     const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    const key = { htOn: 'on', htMode: 'mode', htColor: 'color', htStrength: 'strength', htLpi: 'lpi', htMin: 'min', htAngle: 'angle' }[field];
-    it.ht[key] = typeof it.ht[key] === 'number' ? +v : v;
+    const key = HT_FIELDS[field];
+    it.ht[key] = typeof defaultHalftone()[key] === 'number' ? +v : v;
     refreshHalftoneUi(row, it);
   }
   if (field.startsWith('bg')) {
@@ -462,6 +516,41 @@ $('list').addEventListener('click', e => {
   if (row && e.target.closest('[data-dup]')) { duplicateItem(+row.dataset.k); return; }
   if (row && e.target.closest('[data-fill]')) { fillWithItem(+row.dataset.k); return; }
   if (row && e.target.closest('[data-mock]')) { openMockup(+row.dataset.k); return; }
+  if (row && e.target.closest('[data-inspect]')) { inspectItem(+row.dataset.k); return; }
+  // Halftone-Knöpfe
+  const it = row && state.items[+row.dataset.k];
+  const preset = e.target.closest('[data-htpreset]');
+  if (it && preset) {
+    const p = HT_PRESETS.find(x => x.id === preset.dataset.htpreset);
+    // Knockout-Vorlage: Shirtfarbe aus der Textil-Vorschau, Fotos auf dunklem Shirt: Shirtfarbe bleibt frei
+    setHalftone(it, { ...p.set, ...(p.id === 'knockout' && typeof mock !== 'undefined' ? { color: mock.color } : {}) });
+    toast(`Vorlage „${p.name}“ übernommen.`);
+    update();
+    return;
+  }
+  const shirt = e.target.closest('[data-htshirt]');
+  if (it && shirt) { setHalftone(it, { color: shirt.dataset.htshirt }); update(); return; }
+  if (it && e.target.closest('[data-htmock]')) {
+    if (typeof mock === 'undefined') return;
+    setHalftone(it, { color: mock.color });
+    toast(`Shirtfarbe ${mock.color.toUpperCase()} aus der Textil-Vorschau übernommen.`);
+    update();
+    return;
+  }
+  if (it && e.target.closest('[data-htopt]')) {
+    const lpi = optimalLpi(it.ht);
+    setHalftone(it, { lpi });
+    toast(`Rasterweite ${lpi} lpi: die feinste, bei der Punkte und Löcher mindestens ${String(it.ht.minMm).replace('.', ',')} mm groß bleiben.`);
+    update();
+    return;
+  }
+  if (it && e.target.closest('[data-htall]')) {
+    for (const o of state.items) if (o !== it) setHalftone(o, { ...it.ht });
+    renderList();
+    toast(`Halftone-Einstellungen auf ${state.items.length - 1} weitere Motive übertragen.`);
+    update();
+    return;
+  }
   if (!e.target.closest('[data-remove]')) return;
   const k = +e.target.closest('.it').dataset.k;
   removeItemFromLayout(k);

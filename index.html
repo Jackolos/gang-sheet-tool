@@ -27,6 +27,7 @@
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z M12 9v5 M12 17h.01"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6 M12 7.5h.01"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21 M8 10.5h5 M10.5 8v5"/></symbol>
   <symbol id="i-sheet" viewBox="0 0 24 24"><path d="M6 2h12v20H6z M9 6h6 M9 10h6 M9 14h3"/></symbol>
 </svg>
 
@@ -39,6 +40,7 @@
     <button id="saveProject" class="ghost" title="Auftrag als Datei speichern"><svg class="i"><use href="#i-save"/></svg><span>Speichern</span></button>
     <label class="btn ghost" for="openProject" title="Gespeicherten Auftrag öffnen"><svg class="i"><use href="#i-open"/></svg><span>Öffnen</span></label>
     <input id="openProject" type="file" accept=".json,application/json">
+    <button id="inspectBtn" class="ghost" title="Eine fertige Druckdatei (PNG) auf DTF-Probleme prüfen und reparieren"><svg class="i"><use href="#i-scan"/></svg><span>Datei prüfen</span></button>
     <button id="themeToggle" class="ghost icon" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"><svg class="i"><use href="#i-sun"/></svg></button>
     <button id="expAll" class="primary" title="Alle Blätter als druckfertige PNG-Dateien speichern" hidden><svg class="i"><use href="#i-export"/></svg><span id="expLabel">Exportieren</span></button>
   </div>
@@ -188,6 +190,62 @@
   </div>
 </dialog>
 
+<!-- Druckdatei prüfen (inspect.js): Ampel, Problemstellen, Reparatur, Testblatt -->
+<dialog id="inspect">
+  <div class="mock-head">
+    <strong><svg class="i"><use href="#i-scan"/></svg>Druckdatei prüfen: <span id="iName">keine Datei</span></strong>
+    <button id="iClose" class="x" aria-label="Schließen">×</button>
+  </div>
+  <div class="mock-body">
+    <div class="mock-side">
+      <label class="btn primary" for="iFile"><svg class="i"><use href="#i-upload"/></svg>PNG auswählen</label>
+      <input id="iFile" type="file" accept="image/png,image/webp,image/jpeg">
+      <small class="mhint">… oder eine Datei in dieses Fenster ziehen. Geprüft wird in echter Druckgröße.</small>
+      <div class="grid">
+        <label>Auflösung (dpi)<input id="iDpi" type="number" min="50" max="1200" step="1"></label>
+        <label>Druckgröße<input id="iSize" type="text" readonly></label>
+        <label>Kleinster Punkt (mm)<input id="iMinDot" type="number" min="0.1" max="3" step="0.05"></label>
+        <label>Kleinstes Loch (mm)<input id="iMinGap" type="number" min="0.1" max="3" step="0.05"></label>
+      </div>
+      <div id="iResult" class="iresult"></div>
+      <div class="btnwrap" id="iActions" hidden>
+        <button id="iNext" class="mini ghost" title="Zur nächsten markierten Stelle springen">Nächste Stelle</button>
+        <button id="iRepair" class="mini" title="Halbtransparenz entfernen, zu kleine Punkte löschen, zu kleine Löcher füllen">Automatisch reparieren</button>
+        <button id="iSave" class="mini ghost" hidden>Reparierte Datei speichern</button>
+        <button id="iAdd" class="mini ghost" title="Diese Datei als Motiv in die Liste übernehmen">Als Motiv übernehmen</button>
+      </div>
+      <label class="check"><input id="iMarks" type="checkbox" checked> <span>Problemstellen markieren <small>blau = Punkt zu klein · rot = Loch zu klein · lila = Linie zu dünn · orange = Lücke zu schmal</small></span></label>
+      <label>Hintergrund (wie auf dem Shirt)<select id="iBg">
+        <option value="">Karomuster (= durchsichtig)</option>
+        <option value="mock">Farbe aus der Textil-Vorschau</option>
+        <option value="#ffffff">Weißes Shirt</option>
+        <option value="#111111">Schwarzes Shirt</option>
+        <option value="#1f2a44">Navy</option>
+        <option value="#9aa0a6">Grau meliert</option>
+      </select></label>
+      <label class="check"><input id="iSemi" type="checkbox"> <span>Halbtransparente Pixel zeigen <small>gelb eingefärbt</small></span></label>
+      <div class="mlabel">DTF-Testblatt</div>
+      <small class="mhint">Punkte, Löcher, Linien und Raster in allen Größen. Einmal mitbestellen, dann weißt du, was dein Dienstleister wirklich schafft.</small>
+      <button id="iTest" class="mini ghost">Testblatt als Motiv hinzufügen</button>
+      <div class="mlabel">Selbsttest</div>
+      <small class="mhint">Prüft, ob die Raster-Funktionen dieses Tools in deinem Browser richtig arbeiten (ca. 30 Sekunden).</small>
+      <button id="iSelf" class="mini ghost">Selbsttest starten</button>
+      <div id="iSelfOut" class="iresult"></div>
+    </div>
+    <div class="mock-stage">
+      <canvas id="iCanvas"></canvas>
+      <div id="iEmpty" class="iempty"><svg class="i big"><use href="#i-scan"/></svg><strong>Datei hierher ziehen</strong><span>PNG mit transparentem Hintergrund, z. B. ein Halftone oder ein exportiertes Motiv</span></div>
+      <div class="zoombar">
+        <button id="iZoomOut" class="mini ghost" aria-label="Herauszoomen">−</button>
+        <span id="iZoomLbl">–</span>
+        <button id="iZoomIn" class="mini ghost" aria-label="Hineinzoomen">+</button>
+        <button id="iZoom1" class="mini ghost" title="Echte Größe am Bildschirm (ca.)">1:1</button>
+        <button id="iZoomFit" class="mini ghost">Einpassen</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
 <!-- Reihenfolge ist wichtig: Einstellungen zuerst, die Hauptlogik zuletzt. -->
 <script src="js/config.js"></script>
 <script src="js/ui.js"></script>
@@ -198,11 +256,15 @@
 <script src="js/export.js"></script>
 <script src="js/printcheck.js"></script>
 <script src="js/halftone.js"></script>
+<script src="js/htcheck.js"></script>
+<script src="js/testsheet.js"></script>
 <script src="js/app.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/project.js"></script>
 <script src="js/mockup.js"></script>
 <script src="js/costs.js"></script>
 <script src="js/cmyk.js"></script>
+<script src="js/inspect.js"></script>
+<script src="js/selftest.js"></script>
 </body>
 </html>

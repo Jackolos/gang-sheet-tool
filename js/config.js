@@ -17,6 +17,7 @@ const CONFIG = {
   // Druck-Check
   minLineMm: 0.4,       // dünnere Linien/Details werden gemeldet (MAVI: minimale Linienstärke 0,4 mm)
   minDetailMm2: 1,      // kleinere Einzelteile werden gemeldet (Fläche in mm²)
+  minGapMm: 0.4,        // kleinere Löcher/Lücken laufen beim Druck zu (Datei prüfen, Halftone-Check)
   checkMaxPixels: 3e6,  // Rechengröße für den Check (größer = genauer, aber langsamer)
   mirror: false,
   allowRotate: true,    // Motive dürfen beim Packen gedreht werden (spart Platz)
