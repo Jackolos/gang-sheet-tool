@@ -91,7 +91,12 @@ function addMotif(img, name) {
     ai: { mask: null, busy: false, status: '', error: '' },  // Ergebnis der KI, wird nur einmal berechnet
     hardAlpha: false,    // „Halbtransparenz beheben“ (Druck-Check)
     check: null,         // Ergebnis des Druck-Checks (printcheck.js)
+    ht: defaultHalftone(),   // Halftone-Einstellungen (halftone.js)
+    base: null,          // freigestelltes Motiv vor dem Halftone; img = base oder das gerasterte Bild
+    baseVer: 0,
+    htKey: null,
     cm: Math.min(CONFIG.defaultMotifCm, settings().sheetW / 10),
+    sizeRef: CONFIG.defaultSizeRef,   // wofür die cm gelten: 'w' Breite, 'h' Höhe, 'max' längste Seite
     qty: 1
   };
   processItem(it);
@@ -109,10 +114,23 @@ function processItem(it) {
     }
   }
   if (it.hardAlpha) c = hardenAlpha(c);
-  it.img = trimTransparent(c);
-  it.ratio = it.img.height / it.img.width;
+  it.base = trimTransparent(c);
+  it.img = it.base;            // ein eingeschaltetes Halftone wird danach neu berechnet (scheduleHalftones)
+  it.ratio = it.base.height / it.base.width;
   it.coverage = opaqueShare(it.img);
+  it.baseVer++;
+  it.htKey = null;
   it.ver++;
+}
+
+// Druckmaße eines Motivs in mm. it.cm gilt je nach it.sizeRef für die Breite ('w'),
+// die Höhe ('h') oder die längste Seite ('max'). Alle anderen Teile fragen diese Funktion.
+function motifMm(it) {
+  const r = it.ratio;                       // Höhe / Breite
+  const w = it.sizeRef === 'h' ? it.cm * 10 / r
+    : it.sizeRef === 'max' && r > 1 ? it.cm * 10 / r
+      : it.cm * 10;
+  return { w, h: w * r };
 }
 
 // Anteil des Motivs, der wirklich bedruckt wird (nicht transparent), für die Auslastung.
@@ -221,7 +239,13 @@ function renderList() {
       <div>
         <b title="${esc(it.name)}">${esc(it.name)}</b>
         <div class="f">
-          <label>Breite (cm)<input type="number" data-field="cm" min="0.5" step="0.5" value="${it.cm}"></label>
+          <label class="sizefield">
+            <select data-field="sizeRef" title="Wofür gilt die Größenangabe?">
+              <option value="w" ${it.sizeRef === 'w' ? 'selected' : ''}>Breite (cm)</option>
+              <option value="h" ${it.sizeRef === 'h' ? 'selected' : ''}>Höhe (cm)</option>
+              <option value="max" ${it.sizeRef === 'max' ? 'selected' : ''}>Längste Seite (cm)</option>
+            </select>
+            <input type="number" data-field="cm" min="0.5" step="0.5" value="${it.cm}"></label>
           <label>Stück<input type="number" data-field="qty" min="1" step="1" value="${it.qty}"></label>
         </div>
         <small class="dpi"></small>
@@ -250,6 +274,28 @@ function renderList() {
             </div>
           </div>
           <small class="bgnote"></small>
+        </div>
+        <div class="htctl">
+          <label class="check"><input type="checkbox" data-field="htOn" ${it.ht.on ? 'checked' : ''}> <span>Halftone (Raster) <small>Verläufe bzw. eine Farbe als Punkte drucken</small></span></label>
+          <div class="htopts" ${it.ht.on ? '' : 'hidden'}>
+            <label>Modus<select data-field="htMode">
+              <option value="alpha" ${it.ht.mode === 'alpha' ? 'selected' : ''}>Halbtransparenz → Punkte</option>
+              <option value="color" ${it.ht.mode === 'color' ? 'selected' : ''}>Farbe ausstanzen → Punkte</option>
+            </select></label>
+            <div class="htcolor" ${it.ht.mode === 'color' ? '' : 'hidden'}>
+              <label class="colorpick">Ausgestanzte Farbe <input type="color" data-field="htColor" value="${it.ht.color}"></label>
+              <label>Stärke: <output data-out="htStrength">${it.ht.strength}</output>
+                <input type="range" data-field="htStrength" min="0" max="100" step="1" value="${it.ht.strength}"></label>
+            </div>
+            <label>Rasterweite: <output data-out="htLpi">${it.ht.lpi}</output> lpi <small>(Punkte pro Zoll)</small>
+              <input type="range" data-field="htLpi" min="15" max="45" step="1" value="${it.ht.lpi}"></label>
+            <label>Kleinster Punkt: <output data-out="htMin">${it.ht.min}</output> %
+              <input type="range" data-field="htMin" min="5" max="35" step="1" value="${it.ht.min}"></label>
+            <label>Winkel<select data-field="htAngle">
+              ${[22.5, 45, 0].map(a => `<option value="${a}" ${it.ht.angle === a ? 'selected' : ''}>${String(a).replace('.', ',')}°</option>`).join('')}
+            </select></label>
+            <small class="htinfo"></small>
+          </div>
         </div>
         <div class="pcheck"></div>
         <label class="check hardfix" hidden><input type="checkbox" data-field="bgHard" ${it.hardAlpha ? 'checked' : ''}> Halbtransparenz beheben (alles ganz deckend oder ganz durchsichtig)</label>
@@ -290,6 +336,20 @@ function refreshRow(row, it) {
   el.textContent = note;
   el.classList.toggle('low', warn);
   refreshCheck(row, it);
+  refreshHalftoneUi(row, it);
+}
+
+// Halftone-Bereich einer Zeile: Optionen ein-/ausblenden, Werte und Punktgröße anzeigen
+function refreshHalftoneUi(row, it) {
+  const ht = it.ht;
+  row.querySelector('.htopts').hidden = !ht.on;
+  row.querySelector('.htcolor').hidden = ht.mode !== 'color';
+  for (const o of row.querySelectorAll('[data-out]')) o.textContent = ht[o.dataset.out.slice(2).toLowerCase()];
+  const { cell, minDot } = halftoneInfo(ht), mm = v => v.toFixed(2).replace('.', ',');
+  const el = row.querySelector('.htinfo'), tooSmall = minDot < CONFIG.minLineMm;
+  el.textContent = `Punktabstand ${mm(cell)} mm, kleinster Punkt ca. ${mm(minDot)} mm` +
+    (tooSmall ? ` – unter ${String(CONFIG.minLineMm).replace('.', ',')} mm (MAVI-Mindeststärke). Rasterweite senken oder kleinsten Punkt erhöhen.` : '');
+  el.classList.toggle('low', tooSmall);
 }
 
 $('list').addEventListener('input', e => {
@@ -299,6 +359,13 @@ $('list').addEventListener('input', e => {
   const it = state.items[+row.dataset.k];
   if (field === 'cm') it.cm = Math.max(0.5, +e.target.value || 0.5);
   if (field === 'qty') it.qty = Math.max(1, Math.floor(+e.target.value || 1));
+  if (field === 'sizeRef') it.sizeRef = e.target.value;
+  if (field.startsWith('ht')) {
+    const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    const key = { htOn: 'on', htMode: 'mode', htColor: 'color', htStrength: 'strength', htLpi: 'lpi', htMin: 'min', htAngle: 'angle' }[field];
+    it.ht[key] = typeof it.ht[key] === 'number' ? +v : v;
+    refreshHalftoneUi(row, it);
+  }
   if (field.startsWith('bg')) {
     if (field === 'bgOn') it.bg.on = e.target.checked;
     if (field === 'bgHoles') it.bg.holes = e.target.checked;
@@ -339,6 +406,7 @@ function duplicateItem(k) {
     qty: 1,
     bg: { ...o.bg },
     ai: { mask: o.ai.mask, busy: false, status: '', error: '' },   // KI-Ergebnis mitnehmen, kein Neurechnen
+    ht: { ...o.ht },
     timer: null
   };
   state.items.push(it);
@@ -433,9 +501,10 @@ function update(opts = {}) {
   // dpi-Hinweis pro Motiv: Wie scharf wird das Motiv bei der gewählten Breite?
   document.querySelectorAll('#list .it').forEach(row => {
     const it = state.items[+row.dataset.k], el = row.querySelector('.dpi');
-    const dpi = Math.round(it.img.width / (it.cm / 2.54));
+    const mm = motifMm(it), fmt = v => (v / 10).toFixed(1).replace('.', ',');
+    const dpi = Math.round(it.img.width / (mm.w / 25.4));
     const low = dpi < CONFIG.minMotifDpi;
-    el.textContent = `ca. ${dpi} dpi, ${(it.cm * it.ratio).toFixed(1)} cm hoch` + (low ? ' – für den Druck eher zu niedrig' : '');
+    el.textContent = `${fmt(mm.w)} × ${fmt(mm.h)} cm, ca. ${dpi} dpi` + (low ? ' – für den Druck eher zu niedrig' : '');
     el.classList.toggle('low', low);
   });
 
@@ -454,10 +523,12 @@ function update(opts = {}) {
 
   $('empty').hidden = sheets.length > 0;
   $('expAll').hidden = sheets.length < 1;
+  $('clearAll').hidden = !state.items.length;
   $('expLabel').textContent = sheets.length === 1 ? 'Blatt exportieren' : `${sheets.length} Blätter exportieren`;
   $('editHint').hidden = sheets.length === 0;
   renderSheets();
   updateEditbar();
+  scheduleHalftones(); // Halftones neu rastern, wenn sich Größe/dpi/Einstellungen geändert haben
   scheduleChecks();   // Druck-Check für geänderte Motive (läuft kurz verzögert)
   if (typeof renderCosts === 'function') renderCosts();   // costs.js wird als Letztes geladen
 }
@@ -467,7 +538,8 @@ function renderSheets() {
   const s = settings(), { sheets } = state.result;
   $('sheets').innerHTML = sheets.map((sh, i) => `
     <figure class="sheet">
-      <figcaption>Blatt ${i + 1} von ${sheets.length} · ${sh.placed.length} Motive · ${s.sheetW / 10} × ${s.sheetH / 10} cm</figcaption>
+      <figcaption><span>Blatt ${i + 1} von ${sheets.length} · ${sh.placed.length} Motive · ${s.sheetW / 10} × ${s.sheetH / 10} cm</span>
+        <button class="mini ghost danger" data-clear="${i}" title="Alle Stücke auf diesem Blatt entfernen"><svg class="i"><use href="#i-trash"/></svg>Blatt leeren</button></figcaption>
       <div class="paper"><canvas data-i="${i}"></canvas></div>
       <button class="ghost" data-export="${i}" ${state.busy ? 'disabled' : ''}><svg class="i"><use href="#i-export"/></svg>Blatt ${i + 1} als PNG</button>
     </figure>`).join('');
@@ -497,7 +569,8 @@ function setBusy(b) {
 }
 
 function fileName(i, s) {
-  return `gang-sheet_${s.sheetW / 10}x${s.sheetH / 10}cm_${s.dpi}dpi${s.mirror ? '_gespiegelt' : ''}_blatt-${i + 1}.png`;
+  const pdf = $('exportFormat').value === 'pdf';
+  return `gang-sheet_${s.sheetW / 10}x${s.sheetH / 10}cm_${s.dpi}dpi${pdf ? '_cmyk' : ''}${s.mirror ? '_gespiegelt' : ''}_blatt-${i + 1}.${pdf ? 'pdf' : 'png'}`;
 }
 
 async function exportSheets(indices) {
@@ -511,7 +584,14 @@ async function exportSheets(indices) {
     for (const i of indices) {
       showMsg(`Blatt ${i + 1} wird erstellt … (kann ein paar Sekunden dauern)`, 'info');
       await new Promise(r => setTimeout(r, 30));  // Seite kurz Zeit geben, die Meldung anzuzeigen
-      const blob = await renderSheetPng(state.result.sheets[i], state.items, s);
+      const sheet = state.result.sheets[i];
+      let lastPct = -1;
+      const blob = $('exportFormat').value === 'pdf'
+        ? await renderSheetPdf(sheet, state.items, s, f => {   // CMYK-Umrechnung meldet ihren Fortschritt
+          const pct = Math.floor(f * 4) * 25;
+          if (pct !== lastPct && pct < 100) { lastPct = pct; showMsg(`Blatt ${i + 1}: CMYK-Umrechnung ${pct} % …`, 'info'); }
+        })
+        : await renderSheetPng(sheet, state.items, s);
       downloadBlob(blob, fileName(i, s));
     }
     showMsg(indices.length > 1 ? `${indices.length} Blätter gespeichert.` : 'Gespeichert.', 'info');
@@ -539,11 +619,42 @@ $('rotate').checked = CONFIG.allowRotate;
 $('contour').checked = CONFIG.contourPacking;
 $('margin').value = CONFIG.marginMm;
 // Blatt-Einstellungen ändern = alles neu anordnen (von Hand verschobene Motive passen danach meist nicht mehr)
-['sheetW', 'sheetH', 'margin', 'gap', 'rotate', 'contour'].forEach(id => $(id).addEventListener('input', () => update({ repack: true })));
-$('dpi').addEventListener('input', () => {
-  const s = settings(), px = (s.sheetW * s.dpi / 25.4) * (s.sheetH * s.dpi / 25.4);
-  $('dpiHint').textContent = px > CONFIG.maxExportPixels ? 'Zu hoch für den Browser, bitte senken.' : '';
+// Format-Auswahl (MAVI-Formate oder eigenes Format)
+$('sheetPreset').innerHTML = CONFIG.sheetPresets.map((p, i) => `<option value="${i}">${p.name}</option>`).join('') +
+  '<option value="custom">Eigenes Format</option>';
+function syncPreset() {
+  const w = +$('sheetW').value, h = +$('sheetH').value;
+  const i = CONFIG.sheetPresets.findIndex(p => p.w === w && p.h === h);
+  $('sheetPreset').value = i >= 0 ? String(i) : 'custom';
+}
+$('sheetPreset').addEventListener('input', e => {
+  const p = CONFIG.sheetPresets[+e.target.value];
+  if (!p) return;   // „Eigenes Format“: Maße einfach in die Felder tippen
+  $('sheetW').value = p.w;
+  $('sheetH').value = p.h;
+  checkDpi();
+  update({ repack: true });
 });
+['sheetW', 'sheetH'].forEach(id => $(id).addEventListener('input', () => { syncPreset(); checkDpi(); }));
+syncPreset();
+
+['sheetW', 'sheetH', 'margin', 'gap', 'rotate', 'contour'].forEach(id => $(id).addEventListener('input', () => update({ repack: true })));
+// Hinweise zu Auflösung und Format (Browser-Grenze, MAVI-Vorgaben)
+function checkDpi() {
+  const s = settings(), px = (s.sheetW * s.dpi / 25.4) * (s.sheetH * s.dpi / 25.4);
+  let hint = '';
+  if (px > CONFIG.maxExportPixels) {
+    const maxDpi = Math.floor(25.4 * Math.sqrt(CONFIG.maxExportPixels / (s.sheetW * s.sheetH)));
+    hint = `Zu groß für den Browser. Bei diesem Format höchstens ca. ${maxDpi} dpi.`;
+  } else if (s.sheetH / 10 > CONFIG.maxPngHeightCm && $('sheetPreset').value === 'custom') {
+    hint = `MAVI nimmt PNG nur bis ${CONFIG.maxPngHeightCm} cm Höhe (außer XXL).`;
+  } else if (s.dpi !== 300) {
+    hint = 'MAVI empfiehlt 300 dpi.';
+  }
+  $('dpiHint').textContent = hint;
+}
+$('dpi').addEventListener('input', () => { checkDpi(); scheduleHalftones(); });   // Raster in neuer Auflösung
+checkDpi();
 addEventListener('resize', renderSheets);
 // Als Pfeilfunktion: drawAllSheets steht in editor.js, das erst nach dieser Datei geladen wird
 $('showIssues').addEventListener('input', () => drawAllSheets());

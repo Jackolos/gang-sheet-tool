@@ -41,7 +41,8 @@ const SIZE_PRESETS = {
 };
 
 // show: welche Seite(n) gezeigt werden ('both', 'front', 'back'); layers: Motive auf dem Kleidungsstück
-const mock = { garment: 'tshirt', size: 'M', custom: { w: 51, l: 72 }, color: SHIRT_COLORS[0][1], show: 'both', layers: [], active: -1, drag: null, panels: [], zoom: 1, pan: { x: 0, y: 0 }, panning: null };
+// capArea: Druckbereich vorne auf der Cap (einstellbar, je nach Modell und Presse verschieden)
+const mock = { capArea: { w: 11, h: 5.5 }, garment: 'tshirt', size: 'M', custom: { w: 51, l: 72 }, color: SHIRT_COLORS[0][1], show: 'both', layers: [], active: -1, drag: null, panels: [], zoom: 1, pan: { x: 0, y: 0 }, panning: null };
 
 const isDark = hex => {
   const n = parseInt(hex.slice(1), 16);
@@ -64,7 +65,7 @@ function garmentGeometry(view = 'front') {
   if (gm.cap) {
     return {
       cap: true, view: 'front', W, L, f: 1, top: 0, maxX: 13,
-      area: { x: -5.5, y: 3.5, w: 11, h: 5.5 },
+      area: { x: -mock.capArea.w / 2, y: 6.25 - mock.capArea.h / 2, w: mock.capArea.w, h: mock.capArea.h },   // einstellbar
       placements: [['Front', 'front', 0, 6.25, true]]
     };
   }
@@ -267,7 +268,7 @@ function placeLayer(layer, name) {
   layer.view = pl[1];
   layer.x = pl[2];
   const g = garmentGeometry(layer.view), p2 = g.placements.find(p => p[0] === pl[0]);
-  layer.y = p2[4] ? p2[3] - it.cm * it.ratio / 2 : p2[3];
+  layer.y = p2[4] ? p2[3] - motifMm(it).h / 10 / 2 : p2[3];
   layer.place = pl[0];
 }
 
@@ -350,7 +351,7 @@ function drawMockup() {
     // Motive dieser Seite
     mock.layers.forEach((layer, li) => {
       if (layer.view !== view) return;
-      const it = itemOf(layer), mw = it.cm, mh = it.cm * it.ratio;
+      const it = itemOf(layer), mw = motifMm(it).w / 10, mh = motifMm(it).h / 10;
       ctx.drawImage(it.img, ...P(layer.x - mw / 2, layer.y), mw * s, mh * s);
       if (li === mock.active || mock.layers.length === 1) {   // Maße nur beim ausgewählten Motiv (sonst überlappen sie)
         ctx.fillStyle = dark ? '#fff' : '#222';
@@ -388,7 +389,7 @@ function drawMockup() {
   $('mInfo').innerHTML = warnings.length
     ? warnings.map(w => `<span>⚠ ${esc(w)}</span>`).join('')
     : esc(g0.cap
-      ? 'Cap: Druckbereich vorne ca. 11 × 5,5 cm (je nach Modell verschieden).'
+      ? `Cap: Druckbereich vorne ${fmtCm(mock.capArea.w)} × ${fmtCm(mock.capArea.h)} cm (unten einstellbar, je nach Modell verschieden).`
       : `${GARMENTS[mock.garment].label} ${mock.size}: Brustbreite ${String(W).replace('.', ',')} cm, Länge ${String(L).replace('.', ',')} cm.` +
         (mock.size === 'Eigene Maße' ? '' : ' Typische Maße, je nach Marke etwas anders. Genaue Werte unter „Eigene Maße“.'));
   $('mInfo').classList.toggle('low', warnings.length > 0);
@@ -400,7 +401,7 @@ function layerWarning(g, layer, mw, mh) {
   if (g.cap) {
     const a = g.area;
     const inside = x - mw / 2 >= a.x - 0.01 && x + mw / 2 <= a.x + a.w + 0.01 && y >= a.y - 0.01 && y + mh <= a.y + a.h + 0.01;
-    return inside ? '' : 'größer als der übliche Cap-Druckbereich (ca. 11 × 5,5 cm).';
+    return inside ? '' : `größer als der Cap-Druckbereich (${fmtCm(a.w)} × ${fmtCm(a.h)} cm).`;
   }
   const onSleeve = x + mw / 2 < -g.W / 2 + 2 || x - mw / 2 > g.W / 2 - 2;
   const out = Math.abs(x) + mw / 2 > g.W / 2 + 0.01 || y < g.drop || y + mh > g.L;
@@ -456,6 +457,9 @@ function renderMockControls() {
   const sizes = [...Object.keys(gm.sizes), ...(gm.cap ? [] : ['Eigene Maße'])];
   $('mSize').innerHTML = sizes.map(n => `<option ${n === mock.size ? 'selected' : ''}>${n}</option>`).join('');
   $('mCustom').hidden = mock.size !== 'Eigene Maße';
+  $('mCapArea').hidden = !gm.cap;
+  if (document.activeElement !== $('mCapW')) $('mCapW').value = mock.capArea.w;
+  if (document.activeElement !== $('mCapH')) $('mCapH').value = mock.capArea.h;
   $('mCustomW').value = mock.custom.w;
   $('mCustomL').value = mock.custom.l;
   $('mColors').innerHTML = SHIRT_COLORS.map(([n, c]) =>
@@ -529,10 +533,10 @@ function setMockCm(cm) {
   const layer = activeLayer();
   if (!layer) return;
   const it = itemOf(layer), k = state.items.indexOf(it);
-  const oldH = it.cm * it.ratio;
+  const oldH = motifMm(it).h / 10;
   it.cm = Math.max(0.5, cm);
   const pl = garmentGeometry(layer.view).placements.find(p => p[0] === layer.place);
-  if (pl && pl[4]) layer.y += (oldH - it.cm * it.ratio) / 2;   // bei „Mitte“-Platzierungen bleibt die Mitte
+  if (pl && pl[4]) layer.y += (oldH - motifMm(it).h / 10) / 2;   // bei „Mitte“-Platzierungen bleibt die Mitte
   const field = document.querySelector(`#list .it[data-k="${k}"] input[data-field="cm"]`);
   if (field) field.value = it.cm;
   update();
@@ -578,6 +582,12 @@ $('mCustom').addEventListener('input', () => {
   mock.custom.l = Math.max(30, +$('mCustomL').value || 72);
   replaceAll();
 });
+// Cap-Druckbereich einstellen (Grenzen: Cap ist vorne ca. 22 cm breit und 12 cm hoch)
+$('mCapArea').addEventListener('input', () => {
+  mock.capArea.w = clamp(+$('mCapW').value || 11, 2, 20);
+  mock.capArea.h = clamp(+$('mCapH').value || 5.5, 1, 10);
+  replaceAll();
+});
 $('mColorPick').addEventListener('input', e => {
   mock.color = e.target.value;
   $('mColorHex').textContent = mock.color.toUpperCase();
@@ -599,7 +609,7 @@ $('mCanvas').addEventListener('pointerdown', e => {
   for (let i = mock.layers.length - 1; i >= 0; i--) {   // oberstes zuerst
     const l = mock.layers[i];
     if (l.view !== m.panel.view) continue;
-    const it = itemOf(l), mw = it.cm, mh = it.cm * it.ratio;
+    const it = itemOf(l), mw = motifMm(it).w / 10, mh = motifMm(it).h / 10;
     if (m.x < l.x - mw / 2 || m.x > l.x + mw / 2 || m.y < l.y || m.y > l.y + mh) continue;
     mock.active = i;
     mock.drag = { layer: l, panel: m.panel, dx: m.x - l.x, dy: m.y - l.y };
@@ -675,7 +685,7 @@ function zoomFocus() {
   const l = activeLayer(), p = l && mock.panels.find(q => q.view === l.view);
   if (!p) return [];
   const it = itemOf(l);
-  return [p.ox + l.x * p.s, p.oy + (l.y + it.cm * it.ratio / 2) * p.s];
+  return [p.ox + l.x * p.s, p.oy + (l.y + motifMm(it).h / 10 / 2) * p.s];
 }
 $('mZoomIn').addEventListener('click', () => setZoom(mock.zoom * 1.4, ...zoomFocus()));
 $('mZoomOut').addEventListener('click', () => setZoom(mock.zoom / 1.4, ...zoomFocus()));

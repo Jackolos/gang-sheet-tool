@@ -5,11 +5,18 @@
 // syncLayout() die Anordnung an die Motivliste an: neue Stücke kommen in freie Lücken,
 // überzählige fliegen raus, geänderte Größen werden übernommen.
 
-const editor = { sel: null, drag: null, frame: 0 };
+// sel = zuletzt angeklicktes Motiv (für die Werkzeugleiste), multi = alle ausgewählten Motive,
+// band = Auswahlrahmen, der gerade aufgezogen wird
+const editor = { sel: null, multi: new Set(), drag: null, band: null, frame: 0 };
+
+// Alle ausgewählten Motive, die noch auf einem Blatt liegen
+function selection() {
+  return [...editor.multi].filter(p => sheetIndexOf(p) >= 0);
+}
 
 function baseSize(k) {
   const it = state.items[k];
-  return { w: it.cm * 10, h: it.cm * 10 * it.ratio };
+  return motifMm(it);   // Maße hängen davon ab, ob die cm für Breite, Höhe oder längste Seite gelten
 }
 
 function sheetIndexOf(p) {
@@ -70,8 +77,10 @@ function removeItemFromLayout(k) {
 // Nach dem Neu-Packen gibt es neue Objekte: Auswahl auf ein Stück desselben Motivs übertragen.
 function keepSelection() {
   const p = editor.sel;
+  editor.multi = new Set(selection());   // nicht mehr vorhandene Stücke aus der Auswahl werfen
   if (!p || sheetIndexOf(p) >= 0) return;
   editor.sel = state.result.sheets.flatMap(sh => sh.placed).find(q => q.k === p.k) || null;
+  editor.multi = new Set(editor.sel ? [editor.sel] : []);
 }
 
 // ---------- Überlappungen ----------
@@ -131,12 +140,26 @@ function drawSheet(i) {
   ctx.lineWidth = 2 * devicePixelRatio;
   ctx.strokeStyle = css.getPropertyValue('--warn').trim() || '#b3261e';
   for (const p of conflicts(sh, s.gap)) ctx.strokeRect(p.x * scale, p.y * scale, p.w * scale, p.h * scale);
-  if (editor.sel && sh.placed.includes(editor.sel)) {
-    const p = editor.sel;
-    ctx.strokeStyle = css.getPropertyValue('--acc').trim() || '#1f6b4f';
-    ctx.setLineDash([6 * devicePixelRatio, 4 * devicePixelRatio]);
+  // Ausgewählte Motive gestrichelt umranden (das zuletzt angeklickte etwas kräftiger)
+  const acc = css.getPropertyValue('--acc').trim() || '#2f8cff';
+  ctx.strokeStyle = acc;
+  ctx.setLineDash([6 * devicePixelRatio, 4 * devicePixelRatio]);
+  for (const p of sh.placed) {
+    if (!editor.multi.has(p)) continue;
+    ctx.lineWidth = (p === editor.sel ? 2.5 : 1.5) * devicePixelRatio;
     ctx.strokeRect(p.x * scale - 1, p.y * scale - 1, p.w * scale + 2, p.h * scale + 2);
-    ctx.setLineDash([]);
+  }
+  ctx.setLineDash([]);
+  // Auswahlrahmen beim Aufziehen
+  const b = editor.band;
+  if (b && b.i === i) {
+    const x = Math.min(b.x0, b.x1) * scale, y = Math.min(b.y0, b.y1) * scale;
+    const w = Math.abs(b.x1 - b.x0) * scale, h = Math.abs(b.y1 - b.y0) * scale;
+    ctx.fillStyle = 'rgba(47, 140, 255, .12)';
+    ctx.fillRect(x, y, w, h);
+    ctx.lineWidth = devicePixelRatio;
+    ctx.strokeStyle = acc;
+    ctx.strokeRect(x, y, w, h);
   }
 }
 
@@ -153,10 +176,15 @@ function requestDraw(i) {
 // ---------- Werkzeugleiste ----------
 
 function updateEditbar() {
-  const p = editor.sel;
-  $('editbar').hidden = !p;
+  const p = editor.sel, n = selection().length;
+  $('editbar').hidden = !p && !n;
   $('manualBar').hidden = !state.manual;
-  if (!p) return;
+  if (!p && !n) return;
+  // Bei mehreren Motiven nur das anbieten, was für alle gleichzeitig Sinn ergibt
+  const many = n > 1;
+  for (const el of [$('eCm').closest('label'), $('eSheet').closest('label'), $('eRot'), $('eCopy')]) el.hidden = many;
+  $('eDel').lastChild.textContent = many ? `${n} entfernen` : 'Entfernen';
+  if (many || !p) { $('eName').textContent = `${n} Motive ausgewählt`; return; }
   const i = sheetIndexOf(p), it = state.items[p.k];
   $('eName').textContent = it.name;
   if (document.activeElement !== $('eCm')) $('eCm').value = it.cm;
@@ -167,6 +195,27 @@ function updateEditbar() {
 
 function select(p) {
   editor.sel = p;
+  editor.multi = new Set(p ? [p] : []);
+  drawAllSheets();
+  updateEditbar();
+}
+
+// Strg-/Umschalt-Klick: Motiv zur Auswahl hinzufügen oder wieder herausnehmen
+function toggleSelect(p) {
+  if (editor.multi.has(p)) {
+    editor.multi.delete(p);
+    if (editor.sel === p) editor.sel = [...editor.multi].pop() || null;
+  } else {
+    editor.multi.add(p);
+    editor.sel = p;
+  }
+  drawAllSheets();
+  updateEditbar();
+}
+
+function selectAll() {
+  editor.multi = new Set(state.result.sheets.flatMap(sh => sh.placed));
+  editor.sel = [...editor.multi].pop() || null;
   drawAllSheets();
   updateEditbar();
 }
@@ -236,26 +285,45 @@ function copySelected() {
 }
 
 // Entfernt genau dieses eine Stück (die Stückzahl des Motivs sinkt um 1).
-async function deleteSelected() {
-  const p = editor.sel;
-  if (!p) return;
-  const it = state.items[p.k];
-  editor.sel = null;
-  if (it.qty <= 1) {
-    if (!(await askConfirm(`„${it.name}“ ist nur einmal vorhanden. Soll das Motiv ganz aus der Liste entfernt werden?`,
-      { title: 'Motiv entfernen?', ok: 'Entfernen', danger: true }))) { editor.sel = p; return; }
-    removeItemFromLayout(p.k);
-    state.items.splice(p.k, 1);
-    renderList();
-  } else {
-    const sh = state.result.sheets[sheetIndexOf(p)];
-    sh.placed.splice(sh.placed.indexOf(p), 1);
-    it.qty--;
-    const field = document.querySelector(`#list .it[data-k="${p.k}"] input[data-field="qty"]`);
-    if (field) field.value = it.qty;
+// Entfernt alle ausgewählten Stücke (die Stückzahl der Motive sinkt entsprechend).
+function deleteSelected() {
+  return deletePieces(selection());
+}
+
+// Entfernt die angegebenen Stücke. Bleibt von einem Motiv kein Stück übrig, verschwindet es ganz
+// aus der Liste – dann wird vorher einmal nachgefragt (bzw. immer, wenn title/text übergeben werden).
+async function deletePieces(pieces, ask = null) {
+  if (!pieces.length) return;
+  const perItem = new Map();
+  for (const p of pieces) perItem.set(p.k, (perItem.get(p.k) || 0) + 1);
+  const vanish = [...perItem].filter(([k, n]) => state.items[k].qty - n <= 0).map(([k]) => k);
+  const names = vanish.map(k => `„${state.items[k].name}“`);
+  if (ask || vanish.length) {
+    const text = (ask ? ask.text + ' ' : '') + (vanish.length
+      ? (vanish.length === 1 ? `${names[0]} ist danach nicht mehr vorhanden und wird aus der Liste entfernt.`
+        : `${vanish.length} Motive sind danach nicht mehr vorhanden und werden aus der Liste entfernt: ${names.slice(0, 4).join(', ')}${names.length > 4 ? ' …' : ''}`)
+      : '');
+    const ok = await askConfirm(text.trim(), {
+      title: ask ? ask.title : (pieces.length === 1 ? 'Motiv entfernen?' : `${pieces.length} Stück entfernen?`),
+      ok: 'Entfernen', danger: true
+    });
+    if (!ok) return;
   }
-  state.manual = true;
+  for (const p of pieces) {
+    const sh = state.result.sheets[sheetIndexOf(p)];
+    if (sh) sh.placed.splice(sh.placed.indexOf(p), 1);
+    state.items[p.k].qty--;
+  }
+  for (const k of vanish.sort((a, b) => b - a)) {   // von hinten, damit die Nummern stimmen
+    removeItemFromLayout(k);
+    state.items.splice(k, 1);
+  }
+  editor.sel = null;
+  editor.multi = new Set();
+  state.manual = state.items.length > 0;
+  renderList();
   update();
+  toast(pieces.length === 1 ? 'Stück entfernt.' : `${pieces.length} Stück entfernt.`);
 }
 
 // ---------- Maus / Finger ----------
@@ -274,10 +342,11 @@ function hitTest(sh, m) {
 }
 
 // Einrasten: an Blattrand, an Kanten anderer Motive (mit Abstand) und bündig zu ihnen.
-function snap(p, x, y, sh, s, tol) {
+// skip: Motive, an denen nicht eingerastet wird (z. B. die mitgezogene Gruppe)
+function snap(p, x, y, sh, s, tol, skip = new Set([p])) {
   const xs = [s.margin, s.sheetW - s.margin - p.w], ys = [s.margin, s.sheetH - s.margin - p.h];
   for (const q of sh.placed) {
-    if (q === p) continue;
+    if (skip.has(q)) continue;
     xs.push(q.x + q.w + s.gap, q.x - s.gap - p.w, q.x, q.x + q.w - p.w);
     ys.push(q.y + q.h + s.gap, q.y - s.gap - p.h, q.y, q.y + q.h - p.h);
   }
@@ -296,35 +365,72 @@ $('sheets').addEventListener('pointerdown', e => {
   const cv = e.target.closest('canvas[data-i]');
   if (!cv) return;
   const i = +cv.dataset.i, sh = state.result.sheets[i], m = toMm(e, cv), p = hitTest(sh, m);
+  const add = e.ctrlKey || e.shiftKey || e.metaKey;   // Strg/Umschalt: zur Auswahl hinzufügen
+  cv.setPointerCapture(e.pointerId);
+  e.preventDefault();
+  if (p && add) { toggleSelect(p); return; }
   if (p) {
+    if (!editor.multi.has(p)) editor.multi = new Set([p]);   // Klick auf ein nicht ausgewähltes Motiv: nur dieses
+    editor.sel = p;
     sh.placed.splice(sh.placed.indexOf(p), 1);   // nach oben holen
     sh.placed.push(p);
-    editor.drag = { i, cv, p, dx: m.x - p.x, dy: m.y - p.y, moved: false };
-    cv.setPointerCapture(e.pointerId);
-    e.preventDefault();
+    // Alle ausgewählten Motive auf diesem Blatt werden gemeinsam gezogen
+    const group = selection().filter(q => sh.placed.includes(q));
+    editor.drag = { i, cv, p, dx: m.x - p.x, dy: m.y - p.y, start: group.map(q => ({ q, x: q.x, y: q.y })), moved: false };
+  } else {
+    // Leere Stelle: Auswahlrahmen aufziehen
+    if (!add) { editor.sel = null; editor.multi = new Set(); }
+    editor.band = { i, cv, x0: m.x, y0: m.y, x1: m.x, y1: m.y, base: new Set(editor.multi) };
   }
-  select(p);
+  drawAllSheets();
+  updateEditbar();
 });
 
 $('sheets').addEventListener('pointermove', e => {
+  const b = editor.band;
+  if (b) {
+    const m = toMm(e, b.cv), sh = state.result.sheets[b.i];
+    b.x1 = m.x; b.y1 = m.y;
+    const x0 = Math.min(b.x0, b.x1), x1 = Math.max(b.x0, b.x1), y0 = Math.min(b.y0, b.y1), y1 = Math.max(b.y0, b.y1);
+    editor.multi = new Set(b.base);
+    for (const p of sh.placed) {   // alles, was der Rahmen berührt
+      if (p.x < x1 && p.x + p.w > x0 && p.y < y1 && p.y + p.h > y0) editor.multi.add(p);
+    }
+    editor.sel = [...editor.multi].pop() || null;
+    requestDraw(b.i);
+    return;
+  }
   const d = editor.drag;
   if (!d) {
     const cv = e.target.closest('canvas[data-i]');
-    if (cv) cv.style.cursor = hitTest(state.result.sheets[+cv.dataset.i], toMm(e, cv)) ? 'grab' : 'default';
+    if (cv) cv.style.cursor = hitTest(state.result.sheets[+cv.dataset.i], toMm(e, cv)) ? 'grab' : 'crosshair';
     return;
   }
   const s = settings(), m = toMm(e, d.cv);
   const tol = 8 / d.cv.getBoundingClientRect().width * s.sheetW;   // 8 Bildschirmpixel
-  const pos = snap(d.p, m.x - d.dx, m.y - d.dy, state.result.sheets[d.i], s, tol);
-  if (pos.x === d.p.x && pos.y === d.p.y) return;
-  d.p.x = pos.x;
-  d.p.y = pos.y;
+  const pos = snap(d.p, m.x - d.dx, m.y - d.dy, state.result.sheets[d.i], s, tol, new Set(d.start.map(g => g.q)));
+  const lead = d.start.find(g => g.q === d.p);
+  let dx = pos.x - lead.x, dy = pos.y - lead.y;
+  // Die ganze Gruppe nur so weit verschieben, dass kein Motiv in den Rand gerät
+  for (const g of d.start) {
+    dx = clamp(dx, s.margin - g.x, s.sheetW - s.margin - g.q.w - g.x);
+    dy = clamp(dy, s.margin - g.y, s.sheetH - s.margin - g.q.h - g.y);
+  }
+  if (d.p.x === lead.x + dx && d.p.y === lead.y + dy) return;
+  for (const g of d.start) { g.q.x = g.x + dx; g.q.y = g.y + dy; }
   d.moved = true;
   d.cv.style.cursor = 'grabbing';
   requestDraw(d.i);
 });
 
 function endDrag() {
+  if (editor.band) {
+    const i = editor.band.i;
+    editor.band = null;
+    drawSheet(i);
+    updateEditbar();
+    return;
+  }
   const d = editor.drag;
   if (!d) return;
   editor.drag = null;
@@ -336,17 +442,22 @@ $('sheets').addEventListener('pointercancel', endDrag);
 // ---------- Tastatur ----------
 
 document.addEventListener('keydown', e => {
-  const p = editor.sel;
-  if (!p || e.target.closest('input, select, textarea')) return;
+  if (e.target.closest('input, select, textarea, dialog')) return;
+  // Strg+A: alle Motive auf allen Blättern auswählen
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && state.result.sheets.length) { e.preventDefault(); selectAll(); return; }
+  const p = editor.sel, group = selection();
+  if (!p && !group.length) return;
   if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); copySelected(); return; }
   const s = settings(), step = e.shiftKey ? 10 : 1;
   const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
   if (moves[e.key]) {
-    p.x = clampX(p.x + moves[e.key][0], p, s);
-    p.y = clampY(p.y + moves[e.key][1], p, s);
+    for (const q of group) {   // alle ausgewählten Motive gemeinsam
+      q.x = clampX(q.x + moves[e.key][0], q, s);
+      q.y = clampY(q.y + moves[e.key][1], q, s);
+    }
     state.manual = true;
     update();
-  } else if (e.key === 'r' || e.key === 'R') rotateSelected();
+  } else if (e.key === 'r' || e.key === 'R') { if (group.length <= 1) rotateSelected(); }
   else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
   else if (e.key === 'Escape') select(null);
   else return;
@@ -354,6 +465,29 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------- Knöpfe der Werkzeugleiste ----------
+
+// „Blatt leeren“: alle Stücke auf diesem Blatt entfernen
+$('sheets').addEventListener('click', e => {
+  const b = e.target.closest('[data-clear]');
+  if (!b) return;
+  const i = +b.dataset.clear, sh = state.result.sheets[i];
+  if (sh) deletePieces([...sh.placed], { title: `Blatt ${i + 1} leeren?`, text: `Alle ${sh.placed.length} Stück auf diesem Blatt werden entfernt.` });
+});
+
+// „Alle entfernen“: kompletter Neustart mit leerer Motivliste
+$('clearAll').addEventListener('click', async () => {
+  if (!state.items.length) return;
+  const ok = await askConfirm(`Alle ${state.items.length} Motive werden aus der Liste und von den Blättern entfernt. Gespeicherte Auftragsdateien bleiben unberührt.`,
+    { title: 'Alles entfernen?', ok: 'Alles entfernen', danger: true });
+  if (!ok) return;
+  state.items = [];
+  editor.sel = null;
+  editor.multi = new Set();
+  state.manual = false;
+  renderList();
+  update();
+  toast('Alle Motive entfernt.');
+});
 
 $('eRot').addEventListener('click', rotateSelected);
 $('eCopy').addEventListener('click', copySelected);

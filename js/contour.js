@@ -13,7 +13,7 @@ const rasterCache = new Map();
 // L[j]/R[j] = erstes/letztes belegtes Kästchen in Zeile j (-1 = Zeile leer).
 function pieceRaster(k, rot) {
   const it = state.items[k], cell = CONFIG.contourCellMm;
-  const key = `${it.id}|${it.ver}|${it.cm}|${rot}|${cell}`;
+  const key = `${it.id}|${it.ver}|${it.cm}|${it.sizeRef}|${rot}|${cell}`;
   let r = rasterCache.get(key);
   if (r) return r;
   if (rasterCache.size > 400) rasterCache.clear();

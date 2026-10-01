@@ -13,9 +13,9 @@ function drawPiece(ctx, img, p, s) {
   ctx.restore();
 }
 
-// Zeichnet ein Blatt in voller Größe (z. B. 56 × 100 cm) mit der gewünschten Auflösung.
-// Hintergrund bleibt transparent. Gibt ein PNG (Blob) mit eingetragener dpi-Angabe zurück.
-async function renderSheetPng(sheet, items, s) {
+// Zeichnet ein Blatt in voller Größe (z. B. 56 × 100 cm) mit der gewünschten Auflösung auf eine
+// Zeichenfläche (Canvas). Hintergrund bleibt transparent. Wird von PNG- und CMYK-PDF-Export genutzt.
+function renderSheetCanvas(sheet, items, s) {
   const pxPerMm = s.dpi / 25.4;
   const W = Math.round(s.sheetW * pxPerMm);
   const H = Math.round(s.sheetH * pxPerMm);
@@ -29,7 +29,12 @@ async function renderSheetPng(sheet, items, s) {
   ctx.imageSmoothingQuality = 'high';
   if (s.mirror) { ctx.translate(W, 0); ctx.scale(-1, 1); }  // waagerecht spiegeln
   for (const p of sheet.placed) drawPiece(ctx, items[p.k].img, p, pxPerMm);
+  return c;
+}
 
+// Gibt ein Blatt als PNG (Blob) mit eingetragener dpi-Angabe zurück.
+async function renderSheetPng(sheet, items, s) {
+  const c = renderSheetCanvas(sheet, items, s);
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   c.width = c.height = 0;  // Speicher sofort freigeben
   if (!blob) throw new Error('Export fehlgeschlagen. Bitte die Auflösung senken.');

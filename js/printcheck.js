@@ -69,7 +69,14 @@ function eachComponent(mask, W, H, onComp) {
 }
 
 function runPrintCheck(it) {
-  const wmm = it.cm * 10, hmm = wmm * it.ratio;
+  // Halftone: Das Bild besteht absichtlich aus winzigen, voll deckenden Punkten. Die normalen Prüfungen
+  // würden jeden Punkt melden; stattdessen zählt nur, ob der kleinste Punkt groß genug ist (checkMessages).
+  if (it.ht && it.ht.on) {
+    const ov = document.createElement('canvas');
+    ov.width = ov.height = 1;
+    return { thin: 0, semi: 0, specks: 0, halftone: true, overlay: ov };
+  }
+  const { w: wmm, h: hmm } = motifMm(it);
   // Immer mit (bis zu) 10 Pixeln pro mm rechnen, auch wenn das Original gröber ist: Beim Hochrechnen
   // entstehen weiche Übergänge, an denen sich die echte Kante genauer messen lässt als an groben Pixeln.
   const ppm = Math.min(10, Math.sqrt(CONFIG.checkMaxPixels / (wmm * hmm)));
@@ -93,7 +100,9 @@ function runPrintCheck(it) {
   const issue = new Uint8Array(N);    // 1 = dünn, 2 = halbtransparent, 3 = winziges Teil
 
   // 1. Dünne Linien
-  const r = CONFIG.minLineMm / 2 * ppm;
+  // +0,05 mm: Die Messung liegt erfahrungsgemäß etwas unter der eingestellten Grenze (Kantenpixel),
+  // so wird praktisch wirklich ab der eingestellten Mindeststärke gemeldet.
+  const r = (CONFIG.minLineMm + 0.05) / 2 * ppm;
   let thin = 0;
   if (r >= 0.7) {   // bei sehr kleiner Auflösung nicht sinnvoll messbar (dafür gibt es die dpi-Warnung)
     const toBg = distanceTransform(fg, W, H);
@@ -183,7 +192,7 @@ function scheduleChecks() {
   clearTimeout(checkTimer);
   checkTimer = setTimeout(async () => {
     for (const it of [...state.items]) {
-      const key = `${it.ver}|${it.cm}`;
+      const key = `${it.ver}|${it.cm}|${it.sizeRef}`;
       if (it.check && it.check.key === key) continue;
       await new Promise(r => setTimeout(r, 0));          // Seite zwischendurch reagieren lassen
       if (!state.items.includes(it)) continue;
@@ -199,6 +208,11 @@ function scheduleChecks() {
 function checkMessages(it) {
   const c = it.check, out = [];
   if (!c) return out;
+  if (c.halftone) {
+    const { minDot } = halftoneInfo(it.ht);
+    if (minDot < CONFIG.minLineMm) out.push(`Halftone: Der kleinste Punkt (ca. ${minDot.toFixed(2).replace('.', ',')} mm) ist kleiner als ${String(CONFIG.minLineMm).replace('.', ',')} mm und kann beim Übertragen verloren gehen.`);
+    return out;
+  }
   if (c.thin) out.push(`Feine Linien/Details unter ${String(CONFIG.minLineMm).replace('.', ',')} mm (rot markiert) drucken oft nicht sauber. Motiv größer machen oder Linien verstärken.`);
   if (c.semi) out.push('Halbtransparente Flächen (orange markiert) werden oft fleckig gedruckt.');
   if (c.specks) out.push(`${c.specks} winzige${c.specks === 1 ? 's Einzelteil' : ' Einzelteile'} unter ${CONFIG.minDetailMm2} mm² (lila markiert) können beim Abziehen hängen bleiben.`);

@@ -153,6 +153,7 @@ h2.sec {
 }
 h2.sec::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--cmyk); }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+label.preset { margin-bottom: 10px; }
 .mut { color: var(--mut); font-size: 12px; display: block; }
 .hint { font-size: 12.5px; color: var(--mut); margin: 0 0 12px; }
 
@@ -234,7 +235,10 @@ button.mini svg.i { width: 13px; height: 13px; }
 .btnwrap .on, button.on { background: var(--acc); color: var(--on); border-color: var(--acc); box-shadow: 0 0 12px rgba(47, 140, 255, .35); }
 .x { background: none; border: 0; color: var(--mut); padding: 2px 6px; font-size: 20px; line-height: 1; border-radius: 6px; }
 .x:hover { color: var(--warn); background: var(--warn-soft); border: 0; }
-#file, #openProject { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.exportfmt { margin-top: 14px; }
+.profilebox { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 8px; padding: 10px; border: 1px dashed var(--line-hi); border-radius: 10px; font-size: 13px; }
+.profilebox strong.low { color: var(--warn); }
+#file, #openProject, #profileFile { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 .btn.upload { width: 100%; padding: 12px; font-size: 14.5px; }
 .uphint { display: block; margin: 8px 0 2px; color: var(--mut); font-size: 12px; text-align: center; }
 
@@ -253,6 +257,13 @@ button.mini svg.i { width: 13px; height: 13px; }
 .it small.cost { display: block; color: var(--info); font-weight: 600; }
 .it small.cost:empty { display: none; }
 .f { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0; }
+/* Auswahl „Breite / Höhe / Längste Seite (cm)“ sieht aus wie eine Beschriftung mit Pfeil */
+.sizefield select {
+  width: auto; max-width: 100%; margin: 0; padding: 0 18px 0 0; border: 0; background-color: transparent;
+  background-position: right 2px center; color: var(--mut); font-size: 12.5px; box-shadow: none;
+}
+.sizefield select:hover { color: var(--acc-hi); }
+.sizefield select:focus { box-shadow: none; color: var(--acc-hi); }
 .rowbtns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 small.low, .it small.low { color: var(--warn); }
 .bgctl { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
@@ -262,6 +273,13 @@ small.low, .it small.low { color: var(--warn); }
 .bgopts .method { margin-bottom: 6px; }
 .bgopts select { font-size: 13px; padding-top: 6px; padding-bottom: 6px; }
 .bgopts label.check { margin-top: 6px; color: var(--mut); }
+.htctl { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.htctl label.check { margin-top: 0; font-size: 13px; }
+.htopts { margin: 6px 0 0 44px; display: flex; flex-direction: column; gap: 6px; }
+.htopts select { font-size: 13px; padding-top: 6px; padding-bottom: 6px; }
+.htopts output { color: var(--fg); font-weight: 600; }
+.htinfo { font-size: 11.5px; color: var(--mut); }
+.htinfo.low { color: var(--warn); }
 .swatch { display: inline-block; width: 18px; height: 10px; border: 1px solid var(--mut); border-radius: 5px; vertical-align: middle; }
 .pcheck { margin-top: 8px; font-size: 12px; color: var(--warn); }
 .pcheck span { display: block; }
@@ -333,7 +351,8 @@ label.issues { margin: 0 0 12px; font-size: 13px; }
 
 /* ---------- Blätter ---------- */
 .sheet { margin: 0 0 24px; max-width: 480px; }   /* keine Einblend-Animation: Blätter werden bei jeder Änderung neu aufgebaut */
-.sheet figcaption { font-size: 12.5px; color: var(--mut); margin-bottom: 8px; }
+.sheet figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--mut); margin-bottom: 8px; }
+h2.sec #clearAll { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .paper {
   background: var(--checker); border: 1px solid var(--line-hi); border-radius: 10px; overflow: hidden; margin-bottom: 10px;
   box-shadow: var(--shadow); transition: box-shadow .25s, transform .25s;
@@ -346,7 +365,19 @@ label.issues { margin: 0 0 12px; font-size: 13px; }
   display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; font-size: 13.5px;
 }
-.bar.edit { position: sticky; top: 0; z-index: 5; border-color: var(--acc); box-shadow: var(--shadow), 0 0 20px rgba(47, 140, 255, .15); backdrop-filter: blur(10px); animation: rise .25s ease both; }
+/* Schwebende Leisten unten in der Mitte: Einblenden verschiebt nichts auf der Seite */
+#floatbars {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: max-content; max-width: calc(100vw - 24px); pointer-events: none;
+}
+#floatbars .bar { pointer-events: auto; margin: 0; background: var(--header); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow); animation: rise .25s ease both; }
+.bar.edit { border-color: var(--acc); box-shadow: var(--shadow), 0 0 24px rgba(47, 140, 255, .25); }
+#manualBar { font-size: 12.5px; padding: 6px 10px; }
+#manualBar button { padding: 4px 10px; font-size: 12.5px; }
+/* Unten etwas Platz lassen, damit die Leiste das Ende des letzten Blatts nicht verdeckt */
+#sheets { padding-bottom: 90px; }
+@media (max-width: 760px) { #toasts { bottom: auto; top: calc(var(--top) + 10px); } }
 .bar strong { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar label { display: flex; gap: 6px; align-items: center; }
 .bar input[type=number] { width: 72px; margin: 0; padding: 6px 8px; }
@@ -394,7 +425,7 @@ button.sw.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--acc); }
 .colorpick { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .colorpick input[type=color] { width: 38px; height: 26px; padding: 0; border: 1px solid var(--line-hi); border-radius: 8px; background: none; }
 .colorpick code { font-size: 12px; color: var(--fg); }
-#mCustom { gap: 6px; }
+#mCustom, #mCapArea .grid { gap: 6px; }
 #mInfo { font-size: 12px; color: var(--mut); }
 #mInfo span { display: block; }
 #mInfo.low { color: var(--warn); }

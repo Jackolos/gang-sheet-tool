@@ -48,6 +48,7 @@
   <section class="col-settings">
     <div class="panel">
       <h2 class="sec">Blatt &amp; Druck</h2>
+      <label class="preset">Format<select id="sheetPreset"></select></label>
       <div class="grid">
         <label>Blattbreite (cm)<input id="sheetW" type="number" min="5" step="0.5"></label>
         <label>Blattlänge (cm)<input id="sheetH" type="number" min="5" step="0.5"></label>
@@ -58,6 +59,16 @@
       <label class="check"><input id="rotate" type="checkbox"> <span>Motive drehen erlaubt <small>spart Platz</small></span></label>
       <label class="check"><input id="contour" type="checkbox"> <span>Nach Motivform packen <small>enger bei runden/schrägen Motiven, aber schwerer auszuschneiden</small></span></label>
       <label class="check"><input id="mirror" type="checkbox"> <span>Export spiegeln <small>nur wenn der Dienstleister es verlangt</small></span></label>
+      <label class="preset exportfmt">Exportformat<select id="exportFormat">
+        <option value="png">PNG (RGB)</option>
+        <option value="pdf">PDF (CMYK, z. B. für MAVI)</option>
+      </select></label>
+      <div id="profileBox" class="profilebox" hidden>
+        <span>CMYK-Profil: <strong id="profileName"></strong></span>
+        <small id="profileHelp" class="mut">Kostenlos auf eci.org „ISO Coated v2 (ECI)“ herunterladen und hier einmal auswählen. Das Profil bleibt nur in diesem Browser.</small>
+        <label class="btn ghost mini" for="profileFile"><span id="profileBtnLabel">Profil laden (.icc)</span></label>
+        <input id="profileFile" type="file" accept=".icc,.icm">
+      </div>
     </div>
 
     <details class="panel costpanel" open>
@@ -71,7 +82,7 @@
 
   <section class="col-motifs">
     <div class="panel">
-      <h2 class="sec">Motive</h2>
+      <h2 class="sec">Motive <button id="clearAll" class="mini ghost danger" title="Alle Motive entfernen" hidden><svg class="i"><use href="#i-trash"/></svg>Alle entfernen</button></h2>
       <label class="btn primary upload" for="file"><svg class="i"><use href="#i-upload"/></svg>Motive hochladen</label>
       <small class="uphint">PNG, JPG oder WebP – auch per Ziehen ins Fenster oder mit Strg+V</small>
       <input id="file" type="file" accept="image/png,image/jpeg,image/webp" multiple>
@@ -88,20 +99,7 @@
     <p id="msg"></p>
     <p id="checkSummary" class="low"></p>
     <label id="issuesToggle" class="check issues" hidden><input id="showIssues" type="checkbox" checked> <span>Problemstellen markieren <small>rot = zu dünn · orange = halbtransparent · lila = winzige Teile</small></span></label>
-    <div id="manualBar" class="bar" hidden>
-      <span>Anordnung von Hand bearbeitet.</span>
-      <button id="repack" class="ghost">Neu automatisch anordnen</button>
-    </div>
-    <div id="editbar" class="bar edit" hidden>
-      <strong id="eName"></strong>
-      <label>Breite (cm)<input id="eCm" type="number" min="0.5" step="0.5"></label>
-      <label>Auf<select id="eSheet"></select></label>
-      <button id="eRot" title="Drehen (Taste R)"><svg class="i"><use href="#i-rotate"/></svg>Drehen</button>
-      <button id="eCopy" class="ghost" title="Kopie daneben legen (Strg+D)"><svg class="i"><use href="#i-copy"/></svg>Kopie</button>
-      <button id="eDel" class="ghost danger" title="Dieses Stück entfernen (Taste Entf)"><svg class="i"><use href="#i-trash"/></svg>Entfernen</button>
-      <button id="eClose" class="x" aria-label="Auswahl aufheben">×</button>
-    </div>
-    <p id="editHint" class="hint" hidden>Motiv anklicken und ziehen · Pfeiltasten 1 mm (Umschalt 10 mm) · R dreht · Strg+D Kopie · Entf entfernt · Esc hebt die Auswahl auf · gestrichelt = Sicherheitsrand</p>
+    <p id="editHint" class="hint" hidden>Motiv anklicken und ziehen · Strg+Klick oder Rahmen aufziehen = mehrere auswählen · Strg+A alle · Pfeiltasten 1 mm (Umschalt 10 mm) · R dreht · Strg+D Kopie · Entf entfernt · Esc hebt die Auswahl auf · gestrichelt = Sicherheitsrand</p>
     <div id="empty" class="empty">
       <svg class="i big"><use href="#i-sheet"/></svg>
       <strong>Noch keine Motive</strong>
@@ -113,6 +111,22 @@
 </main>
 
 <div id="dropzone" hidden><div><svg class="i big"><use href="#i-upload"/></svg>Bilder hier ablegen<small>oder eine gespeicherte Auftragsdatei (.json)</small></div></div>
+<!-- Schwebende Leisten unten in der Mitte: verschieben beim Einblenden nichts auf der Seite -->
+<div id="floatbars">
+    <div id="manualBar" class="bar" hidden>
+      <span>Anordnung von Hand bearbeitet.</span>
+      <button id="repack" class="ghost">Neu automatisch anordnen</button>
+    </div>
+    <div id="editbar" class="bar edit" hidden>
+      <strong id="eName"></strong>
+      <label>Größe (cm)<input id="eCm" type="number" min="0.5" step="0.5"></label>
+      <label>Auf<select id="eSheet"></select></label>
+      <button id="eRot" title="Drehen (Taste R)"><svg class="i"><use href="#i-rotate"/></svg>Drehen</button>
+      <button id="eCopy" class="ghost" title="Kopie daneben legen (Strg+D)"><svg class="i"><use href="#i-copy"/></svg>Kopie</button>
+      <button id="eDel" class="ghost danger" title="Dieses Stück entfernen (Taste Entf)"><svg class="i"><use href="#i-trash"/></svg>Entfernen</button>
+      <button id="eClose" class="x" aria-label="Auswahl aufheben">×</button>
+    </div>
+</div>
 <div id="toasts" aria-live="polite"></div>
 
 <!-- Eigene Rückfrage (ersetzt die Windows-/Browser-Meldung) -->
@@ -139,6 +153,13 @@
         <label>Brustbreite (cm)<input id="mCustomW" type="number" min="20" step="0.5"></label>
         <label>Länge (cm)<input id="mCustomL" type="number" min="30" step="0.5"></label>
       </div>
+      <div id="mCapArea" hidden>
+        <div class="mlabel">Druckbereich auf der Cap</div>
+        <div class="grid">
+          <label>Breite (cm)<input id="mCapW" type="number" min="2" max="20" step="0.5"></label>
+          <label>Höhe (cm)<input id="mCapH" type="number" min="1" max="10" step="0.5"></label>
+        </div>
+      </div>
       <div class="mlabel">Farbe</div>
       <div id="mColors" class="btnwrap"></div>
       <label class="colorpick">Eigene Farbe <input id="mColorPick" type="color"> <code id="mColorHex"></code></label>
@@ -150,9 +171,9 @@
       <div id="mAddGrid" hidden></div>
       <div class="mlabel">Platzierung (ausgewähltes Motiv)</div>
       <div id="mPlaces" class="btnwrap"></div>
-      <label>Motivbreite (cm)<input id="mCm" type="number" min="0.5" step="0.5"></label>
+      <label>Motivgröße (cm)<input id="mCm" type="number" min="0.5" step="0.5"></label>
       <div id="mPresets" class="btnwrap"></div>
-      <small class="mhint">Motiv anklicken zum Auswählen, mit der Maus verschieben. Die Breite gilt auch für den Druck. Mausrad zoomt, beim Hineinzoomen verschiebt Ziehen auf einer leeren Stelle den Ausschnitt.</small>
+      <small class="mhint">Motiv anklicken zum Auswählen, mit der Maus verschieben. Die Größe gilt auch für den Druck. Mausrad zoomt, beim Hineinzoomen verschiebt Ziehen auf einer leeren Stelle den Ausschnitt.</small>
       <small id="mInfo"></small>
     </div>
     <div class="mock-stage">
@@ -176,10 +197,12 @@
 <script src="js/contour.js"></script>
 <script src="js/export.js"></script>
 <script src="js/printcheck.js"></script>
+<script src="js/halftone.js"></script>
 <script src="js/app.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/project.js"></script>
 <script src="js/mockup.js"></script>
 <script src="js/costs.js"></script>
+<script src="js/cmyk.js"></script>
 </body>
 </html>

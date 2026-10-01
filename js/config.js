@@ -3,19 +3,27 @@
 const CONFIG = {
   sheetWidthCm: 56,     // Breite eines Blatts
   sheetHeightCm: 100,   // Länge eines Blatts (feste Blätter, kein Endlos-Meter)
+  // Blattformate nach den Druckdaten-Vorgaben von MAVI (mavi-dtf.de, Stand 10/2026)
+  sheetPresets: [
+    { name: 'Meterware 56 × 100 cm', w: 56, h: 100 },
+    { name: 'Halber Meter 56 × 50 cm', w: 56, h: 50 },
+    { name: 'XXL 76 × 200 cm', w: 76, h: 200 }
+  ],
+  maxPngHeightCm: 100,  // MAVI: keine PNG-Dateien über 100 cm Höhe (außer XXL)
   gapMm: 5,             // Abstand zwischen den Motiven
   marginMm: 5,          // Sicherheitsrand an den Blattkanten (dort wird nichts platziert)
   exportDpi: 300,       // Auflösung der Exportdatei (in der Seite änderbar)
   minMotifDpi: 150,     // darunter wird ein Motiv als „zu unscharf“ markiert
   // Druck-Check
-  minLineMm: 0.5,       // dünnere Linien/Details werden gemeldet
+  minLineMm: 0.4,       // dünnere Linien/Details werden gemeldet (MAVI: minimale Linienstärke 0,4 mm)
   minDetailMm2: 1,      // kleinere Einzelteile werden gemeldet (Fläche in mm²)
   checkMaxPixels: 3e6,  // Rechengröße für den Check (größer = genauer, aber langsamer)
   mirror: false,
   allowRotate: true,    // Motive dürfen beim Packen gedreht werden (spart Platz)
   contourPacking: false, // nach Motivform packen statt als Rechteck (enger, aber schwerer auszuschneiden)
   contourCellMm: 2,     // Rastergröße beim Packen nach Motivform (kleiner = genauer, aber langsamer)        // Export spiegeln? Nur einschalten, wenn der Dienstleister das verlangt
-  defaultMotifCm: 10,   // Startbreite für neu hochgeladene Motive
+  defaultMotifCm: 10,   // Startgröße für neu hochgeladene Motive
+  defaultSizeRef: 'w',  // wofür die cm gelten: 'w' = Breite, 'h' = Höhe, 'max' = längste Seite
   // KI-Freistellung für Fotos (wird erst beim ersten Benutzen aus dem Internet geladen)
   aiLibUrl: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm',
   aiModel: 'isnet_fp16', // ca. 90 MB, guter Kompromiss aus Qualität und Größe

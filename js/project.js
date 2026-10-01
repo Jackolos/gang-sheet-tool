@@ -27,9 +27,11 @@ function saveProject() {
       name: it.name,
       image: it.src.toDataURL('image/png'),
       cm: it.cm,
+      sizeRef: it.sizeRef,
       qty: it.qty,
       bg: { ...it.bg },
       hardAlpha: it.hardAlpha,
+      ht: { ...it.ht },
       aiMask: it.ai.mask ? it.ai.mask.toDataURL('image/png') : null
     })),
     manual: state.manual,
@@ -77,6 +79,7 @@ async function openProject(file) {
     // Einstellungen zuerst, damit alles mit den richtigen Werten berechnet wird
     const st = data.settings || {};
     if (st.sheetWCm) $('sheetW').value = st.sheetWCm;
+    setTimeout(() => { syncPreset(); checkDpi(); }, 0);   // Format-Auswahl an die geladenen Maße anpassen
     if (st.sheetHCm) $('sheetH').value = st.sheetHCm;
     if (st.gapMm !== undefined) $('gap').value = st.gapMm;
     // Ältere Aufträge kannten noch keinen Rand: dann 0, damit die gespeicherte Anordnung gültig bleibt
@@ -94,9 +97,11 @@ async function openProject(file) {
       addMotif(img, saved.name);
       const it = state.items.splice(before, 1)[0];
       it.cm = saved.cm;
+      it.sizeRef = saved.sizeRef || 'w';   // ältere Aufträge: cm galten immer für die Breite
       it.qty = saved.qty;
       Object.assign(it.bg, saved.bg);
       it.hardAlpha = !!saved.hardAlpha;
+      it.ht = { ...defaultHalftone(), ...(saved.ht || {}) };   // ältere Aufträge kennen kein Halftone
       if (saved.aiMask) {
         const m = await loadDataUrl(saved.aiMask);
         const c = document.createElement('canvas');
