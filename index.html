@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gang-Sheet-Konfigurator</title>
-<link rel="stylesheet" href="css/style.css?v=bb4a43d1">
+<link rel="stylesheet" href="css/style.css?v=8bda6e20">
 <!-- Gewähltes Farbschema (hell/dunkel) sofort setzen, damit die Seite nicht kurz im falschen Modus aufblitzt -->
 <script>try { const t = localStorage.getItem('gangsheet.theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
@@ -155,12 +155,16 @@
         <label>Brustbreite (cm)<input id="mCustomW" type="number" min="20" step="0.5"></label>
         <label>Länge (cm)<input id="mCustomL" type="number" min="30" step="0.5"></label>
       </div>
-      <div id="mCapArea" hidden>
-        <div class="mlabel">Druckbereich auf der Cap</div>
+      <div id="mArea">
+        <div class="mlabel">Druckbereich <span id="mAreaWhat"></span></div>
+        <div id="mAreaSide" class="btnwrap"><button class="mini ghost" data-aside="front">Vorne</button><button class="mini ghost" data-aside="back">Hinten</button></div>
         <div class="grid">
-          <label>Breite (cm)<input id="mCapW" type="number" min="2" max="20" step="0.5"></label>
-          <label>Höhe (cm)<input id="mCapH" type="number" min="1" max="10" step="0.5"></label>
+          <label>Breite (cm)<input id="mAreaW" type="number" min="1" step="0.5"></label>
+          <label>Höhe (cm)<input id="mAreaH" type="number" min="1" step="0.5"></label>
+          <label id="mAreaYL">Abstand vom Kragen (cm)<input id="mAreaY" type="number" min="0" step="0.5"></label>
         </div>
+        <button id="mAreaReset" class="mini ghost" hidden>Standard wiederherstellen</button>
+        <small class="mhint">Z. B. die Größe deiner Pressplatte. Wird in diesem Browser gespeichert.</small>
       </div>
       <div class="mlabel">Farbe</div>
       <div id="mColors" class="btnwrap"></div>
@@ -247,24 +251,24 @@
 </dialog>
 
 <!-- Reihenfolge ist wichtig: Einstellungen zuerst, die Hauptlogik zuletzt. -->
-<script src="js/config.js?v=bb4a43d1"></script>
-<script src="js/ui.js?v=bb4a43d1"></script>
-<script src="js/background.js?v=bb4a43d1"></script>
-<script src="js/ai-background.js?v=bb4a43d1"></script>
-<script src="js/packer.js?v=bb4a43d1"></script>
-<script src="js/contour.js?v=bb4a43d1"></script>
-<script src="js/export.js?v=bb4a43d1"></script>
-<script src="js/printcheck.js?v=bb4a43d1"></script>
-<script src="js/halftone.js?v=bb4a43d1"></script>
-<script src="js/htcheck.js?v=bb4a43d1"></script>
-<script src="js/testsheet.js?v=bb4a43d1"></script>
-<script src="js/app.js?v=bb4a43d1"></script>
-<script src="js/editor.js?v=bb4a43d1"></script>
-<script src="js/project.js?v=bb4a43d1"></script>
-<script src="js/mockup.js?v=bb4a43d1"></script>
-<script src="js/costs.js?v=bb4a43d1"></script>
-<script src="js/cmyk.js?v=bb4a43d1"></script>
-<script src="js/inspect.js?v=bb4a43d1"></script>
-<script src="js/selftest.js?v=bb4a43d1"></script>
+<script src="js/config.js?v=8bda6e20"></script>
+<script src="js/ui.js?v=8bda6e20"></script>
+<script src="js/background.js?v=8bda6e20"></script>
+<script src="js/ai-background.js?v=8bda6e20"></script>
+<script src="js/packer.js?v=8bda6e20"></script>
+<script src="js/contour.js?v=8bda6e20"></script>
+<script src="js/export.js?v=8bda6e20"></script>
+<script src="js/printcheck.js?v=8bda6e20"></script>
+<script src="js/halftone.js?v=8bda6e20"></script>
+<script src="js/htcheck.js?v=8bda6e20"></script>
+<script src="js/testsheet.js?v=8bda6e20"></script>
+<script src="js/app.js?v=8bda6e20"></script>
+<script src="js/editor.js?v=8bda6e20"></script>
+<script src="js/project.js?v=8bda6e20"></script>
+<script src="js/mockup.js?v=8bda6e20"></script>
+<script src="js/costs.js?v=8bda6e20"></script>
+<script src="js/cmyk.js?v=8bda6e20"></script>
+<script src="js/inspect.js?v=8bda6e20"></script>
+<script src="js/selftest.js?v=8bda6e20"></script>
 </body>
 </html>

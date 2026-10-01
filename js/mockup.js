@@ -41,8 +41,26 @@ const SIZE_PRESETS = {
 };
 
 // show: welche Seite(n) gezeigt werden ('both', 'front', 'back'); layers: Motive auf dem Kleidungsstück
-// capArea: Druckbereich vorne auf der Cap (einstellbar, je nach Modell und Presse verschieden)
-const mock = { capArea: { w: 11, h: 5.5 }, garment: 'tshirt', size: 'M', custom: { w: 51, l: 72 }, color: SHIRT_COLORS[0][1], show: 'both', layers: [], active: -1, drag: null, panels: [], zoom: 1, pan: { x: 0, y: 0 }, panning: null };
+// areas: selbst eingestellte Druckbereiche je Kleidungsstück und Seite, z. B. areas['hoodie|back'] =
+//   { w, h, y } in cm (y = Abstand der Oberkante vom Kragen). Ohne Eintrag gilt der berechnete Standard.
+//   Gespeichert im Browser (localStorage 'gangsheet.areas'), weil es von Presse/Modell abhängt.
+// areaSide: welche Seite gerade in den Feldern eingestellt wird
+const AREAS_KEY = 'gangsheet.areas';
+const mock = { areas: loadAreas(), areaSide: 'front', garment: 'tshirt', size: 'M', custom: { w: 51, l: 72 }, color: SHIRT_COLORS[0][1], show: 'both', layers: [], active: -1, drag: null, panels: [], zoom: 1, pan: { x: 0, y: 0 }, panning: null };
+
+function loadAreas() {
+  try { return JSON.parse(localStorage.getItem(AREAS_KEY) || '{}') || {}; } catch { return {}; }
+}
+function saveAreas() {
+  try { localStorage.setItem(AREAS_KEY, JSON.stringify(mock.areas)); } catch { /* egal, gilt dann nur bis zum Neuladen */ }
+}
+// Eigenen Druckbereich anwenden (falls eingestellt). def = berechneter Standard { x, y, w, h }.
+function applyArea(g, key, def) {
+  g.areaDefault = def;
+  const o = mock.areas[key];
+  g.areaCustom = !!o;
+  g.area = o ? { x: -o.w / 2, y: o.y, w: o.w, h: o.h } : def;
+}
 
 const isDark = hex => {
   const n = parseInt(hex.slice(1), 16);
@@ -63,11 +81,9 @@ function currentSize() {
 function garmentGeometry(view = 'front') {
   const gm = GARMENTS[mock.garment], [W, L] = currentSize();
   if (gm.cap) {
-    return {
-      cap: true, view: 'front', W, L, f: 1, top: 0, maxX: 13,
-      area: { x: -mock.capArea.w / 2, y: 6.25 - mock.capArea.h / 2, w: mock.capArea.w, h: mock.capArea.h },   // einstellbar
-      placements: [['Front', 'front', 0, 6.25, true]]
-    };
+    const g = { cap: true, view: 'front', W, L, f: 1, top: 0, maxX: 13, placements: [['Front', 'front', 0, 6.25, true]] };
+    applyArea(g, 'cap|front', { x: -11 / 2, y: 6.25 - 5.5 / 2, w: 11, h: 5.5 });   // typisch ca. 11 × 5,5 cm
+    return g;
   }
   const long = gm.sleeve === 'long';
   const f = W / (long ? 56 : 51);                                  // Maßstab relativ zu Größe M
@@ -92,7 +108,9 @@ function garmentGeometry(view = 'front') {
   let ay = drop + 5 * f, aw = Math.min(30, W - 12 * f), ah = Math.min(40, L - drop - 14 * f);
   if (g.pocket) ah = Math.min(ah, g.pocket.top - 2 * f - ay);
   if (g.hoodBack) { ay = g.hoodBack.bottom + 3 * f; ah = Math.min(40, L - ay - 10 * f); }
-  g.area = gm.collar && view === 'front' ? null : { x: -aw / 2, y: ay, w: aw, h: ah };
+  // Polo vorne: wegen der Knopfleiste kein Standardbereich, ein eigener lässt sich aber einstellen
+  applyArea(g, `${mock.garment}|${view}`, gm.collar && view === 'front' ? null : { x: -aw / 2, y: ay, w: aw, h: ah });
+  g.areaSuggest = { x: -aw / 2, y: ay, w: aw, h: ah };
 
   // Platzierungen: [Name, Ansicht, x-Mitte, y-Oberkante (oder Mitte), y ist Mitte?]
   const sleeve = { x: 0.3 * (S.x + A.x) + 0.2 * (T.x + B.x), y: 0.3 * (S.y + A.y) + 0.2 * (T.y + B.y) };
@@ -344,7 +362,7 @@ function drawMockup() {
       ctx.fillStyle = dark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.5)';
       ctx.font = `${(n > 1 ? 9 : 11) * dpr}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText(`max. Druckbereich ${fmtCm(a.w)} × ${fmtCm(a.h)} cm`, ...P(0, a.y + a.h + (g.cap ? 1.2 : 2)));
+      ctx.fillText(`${g.areaCustom ? 'Eigener Druckbereich' : 'max. Druckbereich'} ${fmtCm(a.w)} × ${fmtCm(a.h)} cm`, ...P(0, a.y + a.h + (g.cap ? 1.2 : 2)));
       ctx.restore();
     }
 
@@ -389,7 +407,7 @@ function drawMockup() {
   $('mInfo').innerHTML = warnings.length
     ? warnings.map(w => `<span>⚠ ${esc(w)}</span>`).join('')
     : esc(g0.cap
-      ? `Cap: Druckbereich vorne ${fmtCm(mock.capArea.w)} × ${fmtCm(mock.capArea.h)} cm (unten einstellbar, je nach Modell verschieden).`
+      ? `Cap: Druckbereich vorne ${fmtCm(g0.area.w)} × ${fmtCm(g0.area.h)} cm (links einstellbar, je nach Modell verschieden).`
       : `${GARMENTS[mock.garment].label} ${mock.size}: Brustbreite ${String(W).replace('.', ',')} cm, Länge ${String(L).replace('.', ',')} cm.` +
         (mock.size === 'Eigene Maße' ? '' : ' Typische Maße, je nach Marke etwas anders. Genaue Werte unter „Eigene Maße“.'));
   $('mInfo').classList.toggle('low', warnings.length > 0);
@@ -409,6 +427,15 @@ function layerWarning(g, layer, mw, mh) {
   if (g.pocket && y + mh > g.pocket.top && Math.abs(x) < g.pocket.wBottom / 2 + mw / 2) return 'liegt über der Bauchtasche, dort lässt es sich schlecht pressen.';
   if (g.hoodBack && y < g.hoodBack.bottom && Math.abs(x) < g.hoodBack.w / 2) return 'wird von der Kapuze verdeckt.';
   if (g.gm.collar && g.view === 'front' && Math.abs(x) < mw / 2 + 2 && y < 16 * g.f) return 'liegt auf der Knopfleiste.';
+  // Druckbereich (z. B. Pressplatte): Motive, die ihn teilweise überdecken, ragen hinaus.
+  // Ganz außerhalb liegende (Ärmel, Nacken, Brustlogo neben dem Bereich) sind gewollt und kein Fehler.
+  const a = g.area;
+  if (a) {
+    const l = x - mw / 2, r = x + mw / 2, t = y, b = y + mh, e = 0.01;
+    const overlaps = r > a.x + e && l < a.x + a.w - e && b > a.y + e && t < a.y + a.h - e;
+    const inside = l >= a.x - e && r <= a.x + a.w + e && t >= a.y - e && b <= a.y + a.h + e;
+    if (overlaps && !inside) return `ragt über den Druckbereich (${fmtCm(a.w)} × ${fmtCm(a.h)} cm) hinaus.`;
+  }
   return '';
 }
 
@@ -457,9 +484,7 @@ function renderMockControls() {
   const sizes = [...Object.keys(gm.sizes), ...(gm.cap ? [] : ['Eigene Maße'])];
   $('mSize').innerHTML = sizes.map(n => `<option ${n === mock.size ? 'selected' : ''}>${n}</option>`).join('');
   $('mCustom').hidden = mock.size !== 'Eigene Maße';
-  $('mCapArea').hidden = !gm.cap;
-  if (document.activeElement !== $('mCapW')) $('mCapW').value = mock.capArea.w;
-  if (document.activeElement !== $('mCapH')) $('mCapH').value = mock.capArea.h;
+  renderAreaControls();
   $('mCustomW').value = mock.custom.w;
   $('mCustomL').value = mock.custom.l;
   $('mColors').innerHTML = SHIRT_COLORS.map(([n, c]) =>
@@ -582,11 +607,42 @@ $('mCustom').addEventListener('input', () => {
   mock.custom.l = Math.max(30, +$('mCustomL').value || 72);
   replaceAll();
 });
-// Cap-Druckbereich einstellen (Grenzen: Cap ist vorne ca. 22 cm breit und 12 cm hoch)
-$('mCapArea').addEventListener('input', () => {
-  mock.capArea.w = clamp(+$('mCapW').value || 11, 2, 20);
-  mock.capArea.h = clamp(+$('mCapH').value || 5.5, 1, 10);
-  replaceAll();
+// ---------- Druckbereich einstellen (alle Kleidungsstücke, vorne/hinten) ----------
+
+function areaKey() {
+  return GARMENTS[mock.garment].cap ? 'cap|front' : `${mock.garment}|${mock.areaSide}`;
+}
+
+function renderAreaControls() {
+  const gm = GARMENTS[mock.garment], cap = !!gm.cap;
+  if (cap) mock.areaSide = 'front';
+  const g = garmentGeometry(mock.areaSide), a = g.area || g.areaSuggest;
+  $('mAreaWhat').textContent = cap ? 'auf der Cap' : mock.areaSide === 'front' ? 'vorne' : 'hinten';
+  $('mAreaSide').hidden = cap;
+  $('mAreaYL').hidden = cap;   // auf der Cap sitzt der Bereich immer mittig
+  document.querySelectorAll('#mAreaSide [data-aside]').forEach(b => b.classList.toggle('on', b.dataset.aside === mock.areaSide));
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = Math.round(v * 10) / 10; };
+  set('mAreaW', a.w); set('mAreaH', a.h); set('mAreaY', a.y);
+  $('mAreaReset').hidden = !g.areaCustom;
+}
+
+// Grenzen: nicht breiter/länger als das Kleidungsstück selbst
+$('mArea').addEventListener('input', () => {
+  const cap = !!GARMENTS[mock.garment].cap, [W, L] = currentSize();
+  const w = clamp(+$('mAreaW').value || 1, 1, cap ? 20 : W), h = clamp(+$('mAreaH').value || 1, 1, cap ? 10 : L);
+  const y = cap ? 6.25 - h / 2 : clamp(+$('mAreaY').value || 0, 0, Math.max(0, L - h));
+  mock.areas[areaKey()] = { w, h, y };
+  saveAreas();
+  refreshMockup();
+});
+$('mArea').addEventListener('click', e => {
+  const side = e.target.closest('[data-aside]');
+  if (side) { mock.areaSide = side.dataset.aside; refreshMockup(); return; }
+  if (e.target === $('mAreaReset')) {
+    delete mock.areas[areaKey()];
+    saveAreas();
+    refreshMockup();
+  }
 });
 $('mColorPick').addEventListener('input', e => {
   mock.color = e.target.value;
