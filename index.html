@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gang-Sheet-Konfigurator</title>
+<link rel="stylesheet" href="css/style.css">
+<!-- Gewähltes Farbschema (hell/dunkel) sofort setzen, damit die Seite nicht kurz im falschen Modus aufblitzt -->
+<script>try { const t = localStorage.getItem('gangsheet.theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+</head>
+<body>
+
+<!-- Symbole (werden mit <svg><use href="#i-..."/></svg> eingesetzt) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z M8 3v5h7V3 M8 21v-7h8v7"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12 M7 10l5 5 5-5 M4 20h16"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4 M7 9l5-5 5 5 M4 20h16"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7 M20 4v5h-5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h11v11H9z M5 15H4V4h11v1"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-shirt" viewBox="0 0 24 24"><path d="M8 3 3 7l3 4 2-1v11h8V10l2 1 3-4-5-4c-.8 1.8-2.2 3-4 3S8.8 4.8 8 3z"/></symbol>
+  <symbol id="i-fill" viewBox="0 0 24 24"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z"/></symbol>
+  <symbol id="i-dup" viewBox="0 0 24 24"><path d="M8 8h12v12H8z M14 11v6 M11 14h6 M4 16V4h12"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z M12 9v5 M12 17h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6 M12 7.5h.01"/></symbol>
+  <symbol id="i-sheet" viewBox="0 0 24 24"><path d="M6 2h12v20H6z M9 6h6 M9 10h6 M9 14h3"/></symbol>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <div><strong>Gang-Sheet-Konfigurator</strong><small>DTF-Druckbögen automatisch packen</small></div>
+  </div>
+  <div class="actions">
+    <button id="saveProject" class="ghost" title="Auftrag als Datei speichern"><svg class="i"><use href="#i-save"/></svg><span>Speichern</span></button>
+    <label class="btn ghost" for="openProject" title="Gespeicherten Auftrag öffnen"><svg class="i"><use href="#i-open"/></svg><span>Öffnen</span></label>
+    <input id="openProject" type="file" accept=".json,application/json">
+    <button id="themeToggle" class="ghost icon" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"><svg class="i"><use href="#i-sun"/></svg></button>
+    <button id="expAll" class="primary" title="Alle Blätter als druckfertige PNG-Dateien speichern" hidden><svg class="i"><use href="#i-export"/></svg><span id="expLabel">Exportieren</span></button>
+  </div>
+</header>
+
+<main>
+  <section class="col-settings">
+    <div class="panel">
+      <h2 class="sec">Blatt &amp; Druck</h2>
+      <div class="grid">
+        <label>Blattbreite (cm)<input id="sheetW" type="number" min="5" step="0.5"></label>
+        <label>Blattlänge (cm)<input id="sheetH" type="number" min="5" step="0.5"></label>
+        <label>Rand (mm)<input id="margin" type="number" min="0" step="1" title="Sicherheitsrand an den Blattkanten"></label>
+        <label>Abstand (mm)<input id="gap" type="number" min="0" step="1" title="Abstand zwischen den Motiven"></label>
+        <label>Export-Auflösung (dpi)<input id="dpi" type="number" min="72" max="600" step="10"><small id="dpiHint" class="low"></small></label>
+      </div>
+      <label class="check"><input id="rotate" type="checkbox"> <span>Motive drehen erlaubt <small>spart Platz</small></span></label>
+      <label class="check"><input id="contour" type="checkbox"> <span>Nach Motivform packen <small>enger bei runden/schrägen Motiven, aber schwerer auszuschneiden</small></span></label>
+      <label class="check"><input id="mirror" type="checkbox"> <span>Export spiegeln <small>nur wenn der Dienstleister es verlangt</small></span></label>
+    </div>
+
+    <details class="panel costpanel" open>
+      <summary><h2 class="sec">Kosten</h2></summary>
+      <small class="mut">Meterpreis = Preis pro Blatt (pro angefangenem Meter). Wird im Browser gespeichert.</small>
+      <div id="providers"></div>
+      <button id="addProvider" class="mini ghost">+ Anbieter</button>
+      <div id="costResult"></div>
+    </details>
+  </section>
+
+  <section class="col-motifs">
+    <div class="panel">
+      <h2 class="sec">Motive</h2>
+      <label class="btn primary upload" for="file"><svg class="i"><use href="#i-upload"/></svg>Motive hochladen</label>
+      <small class="uphint">PNG, JPG oder WebP – auch per Ziehen ins Fenster oder mit Strg+V</small>
+      <input id="file" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+      <div id="list"></div>
+    </div>
+  </section>
+
+  <section class="col-sheets">
+    <div class="stats">
+      <div><span>Blätter</span><strong id="sBlatt">–</strong></div>
+      <div><span>Motive</span><strong id="sMotive">–</strong></div>
+      <div><span>Auslastung</span><strong id="sAusl">–</strong></div>
+    </div>
+    <p id="msg"></p>
+    <p id="checkSummary" class="low"></p>
+    <label id="issuesToggle" class="check issues" hidden><input id="showIssues" type="checkbox" checked> <span>Problemstellen markieren <small>rot = zu dünn · orange = halbtransparent · lila = winzige Teile</small></span></label>
+    <div id="manualBar" class="bar" hidden>
+      <span>Anordnung von Hand bearbeitet.</span>
+      <button id="repack" class="ghost">Neu automatisch anordnen</button>
+    </div>
+    <div id="editbar" class="bar edit" hidden>
+      <strong id="eName"></strong>
+      <label>Breite (cm)<input id="eCm" type="number" min="0.5" step="0.5"></label>
+      <label>Auf<select id="eSheet"></select></label>
+      <button id="eRot" title="Drehen (Taste R)"><svg class="i"><use href="#i-rotate"/></svg>Drehen</button>
+      <button id="eCopy" class="ghost" title="Kopie daneben legen (Strg+D)"><svg class="i"><use href="#i-copy"/></svg>Kopie</button>
+      <button id="eDel" class="ghost danger" title="Dieses Stück entfernen (Taste Entf)"><svg class="i"><use href="#i-trash"/></svg>Entfernen</button>
+      <button id="eClose" class="x" aria-label="Auswahl aufheben">×</button>
+    </div>
+    <p id="editHint" class="hint" hidden>Motiv anklicken und ziehen · Pfeiltasten 1 mm (Umschalt 10 mm) · R dreht · Strg+D Kopie · Entf entfernt · Esc hebt die Auswahl auf · gestrichelt = Sicherheitsrand</p>
+    <div id="empty" class="empty">
+      <svg class="i big"><use href="#i-sheet"/></svg>
+      <strong>Noch keine Motive</strong>
+      <span>1. Motive hochladen &nbsp;·&nbsp; 2. Größe und Stückzahl einstellen &nbsp;·&nbsp; 3. Blätter exportieren</span>
+      <small>Das graue Karomuster zeigt später, wo die Folie transparent bleibt.</small>
+    </div>
+    <div id="sheets"></div>
+  </section>
+</main>
+
+<div id="dropzone" hidden><div><svg class="i big"><use href="#i-upload"/></svg>Bilder hier ablegen<small>oder eine gespeicherte Auftragsdatei (.json)</small></div></div>
+<div id="toasts" aria-live="polite"></div>
+
+<!-- Eigene Rückfrage (ersetzt die Windows-/Browser-Meldung) -->
+<dialog id="confirmDlg" class="dlg">
+  <div class="dlg-icon"><svg class="i"><use href="#i-alert"/></svg></div>
+  <h3 id="cTitle">Bist du sicher?</h3>
+  <p id="cText"></p>
+  <div class="dlg-actions">
+    <button id="cNo" class="ghost">Abbrechen</button>
+    <button id="cYes" class="primary">OK</button>
+  </div>
+</dialog>
+
+<dialog id="mockup">
+  <div class="mock-head">
+    <strong><svg class="i"><use href="#i-shirt"/></svg>Textil-Vorschau: <span id="mName"></span></strong>
+    <button id="mClose" class="x" aria-label="Schließen">×</button>
+  </div>
+  <div class="mock-body">
+    <div class="mock-side">
+      <label>Artikel<select id="mGarment"></select></label>
+      <label>Größe<select id="mSize"></select></label>
+      <div id="mCustom" class="grid" hidden>
+        <label>Brustbreite (cm)<input id="mCustomW" type="number" min="20" step="0.5"></label>
+        <label>Länge (cm)<input id="mCustomL" type="number" min="30" step="0.5"></label>
+      </div>
+      <div class="mlabel">Farbe</div>
+      <div id="mColors" class="btnwrap"></div>
+      <label class="colorpick">Eigene Farbe <input id="mColorPick" type="color"> <code id="mColorHex"></code></label>
+      <div class="mlabel">Ansicht</div>
+      <div class="btnwrap"><button class="mini ghost" data-show="both">Beide Seiten</button><button class="mini ghost" data-show="front">Vorne</button><button class="mini ghost" data-show="back">Hinten</button></div>
+      <div class="mlabel">Motive auf diesem Teil</div>
+      <div id="mLayers"></div>
+      <button id="mAddBtn" class="mini ghost">+ Motiv hinzufügen</button>
+      <div id="mAddGrid" hidden></div>
+      <div class="mlabel">Platzierung (ausgewähltes Motiv)</div>
+      <div id="mPlaces" class="btnwrap"></div>
+      <label>Motivbreite (cm)<input id="mCm" type="number" min="0.5" step="0.5"></label>
+      <div id="mPresets" class="btnwrap"></div>
+      <small class="mhint">Motiv anklicken zum Auswählen, mit der Maus verschieben. Die Breite gilt auch für den Druck. Mausrad zoomt, beim Hineinzoomen verschiebt Ziehen auf einer leeren Stelle den Ausschnitt.</small>
+      <small id="mInfo"></small>
+    </div>
+    <div class="mock-stage">
+      <canvas id="mCanvas"></canvas>
+      <div class="zoombar">
+        <button id="mZoomOut" class="mini ghost" title="Herauszoomen" aria-label="Herauszoomen">−</button>
+        <span id="mZoomLbl">100 %</span>
+        <button id="mZoomIn" class="mini ghost" title="Hineinzoomen" aria-label="Hineinzoomen">+</button>
+        <button id="mZoomFit" class="mini ghost" title="Ganzes Kleidungsstück zeigen">Einpassen</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Reihenfolge ist wichtig: Einstellungen zuerst, die Hauptlogik zuletzt. -->
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/background.js"></script>
+<script src="js/ai-background.js"></script>
+<script src="js/packer.js"></script>
+<script src="js/contour.js"></script>
+<script src="js/export.js"></script>
+<script src="js/printcheck.js"></script>
+<script src="js/app.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/project.js"></script>
+<script src="js/mockup.js"></script>
+<script src="js/costs.js"></script>
+</body>
+</html>
