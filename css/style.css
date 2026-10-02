@@ -480,6 +480,8 @@ button.sw.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--acc); }
 .iresult .w { color: #e0a400; } .iresult .w::before { content: "!"; font-weight: 700; left: 4px; }
 .iresult .g { color: var(--info); } .iresult .g::before { content: "✓"; }
 .iresult .n { color: var(--mut); }
+.htinfo { transition: opacity .2s; }
+.htinfo.busy { opacity: .4; cursor: progress; }
 .htpresets { display: flex; flex-wrap: wrap; gap: 4px; }
 .htpresets button { font-size: 11.5px; padding: 4px 8px; }
 .htsw { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }

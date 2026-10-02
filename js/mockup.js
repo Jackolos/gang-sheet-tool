@@ -652,7 +652,7 @@ $('mColorPick').addEventListener('input', e => {
 });
 $('mCm').addEventListener('input', e => { if (+e.target.value > 0) setMockCm(+e.target.value); });
 
-// Motive anklicken (auswählen) und verschieben – nur innerhalb ihrer Seite
+// Motive anklicken (auswählen) und verschieben – auch von vorne nach hinten und umgekehrt
 function mockPoint(e) {
   const r = $('mCanvas').getBoundingClientRect(), dpr = devicePixelRatio;
   const px = (e.clientX - r.left) * dpr, py = (e.clientY - r.top) * dpr;
@@ -692,6 +692,13 @@ $('mCanvas').addEventListener('pointermove', e => {
   const d = mock.drag;
   if (!d) return;
   const r = $('mCanvas').getBoundingClientRect(), dpr = devicePixelRatio;
+  // Über die andere Seite gezogen (Ansicht „Beide Seiten“): Motiv wechselt dorthin. Sonst bliebe es
+  // auf der alten Seite und würde vom anderen Kleidungsstück verdeckt.
+  const px = (e.clientX - r.left) * dpr, target = mock.panels.find(p => px >= p.x0 && px <= p.x1);
+  if (target && target.view !== d.panel.view) {
+    d.panel = target;
+    d.layer.view = target.view;
+  }
   d.layer.x = ((e.clientX - r.left) * dpr - d.panel.ox) / d.panel.s - d.dx;
   d.layer.y = ((e.clientY - r.top) * dpr - d.panel.oy) / d.panel.s - d.dy;
   d.layer.place = null;

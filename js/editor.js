@@ -110,6 +110,28 @@ function conflictSheets() {
 
 // ---------- Zeichnen ----------
 
+// Verkleinerte Kopie eines Motivbilds für die Vorschau. Gerasterte Motive liegen in voller
+// Druckauflösung vor (oft 15–40 Millionen Pixel); sie bei jedem Neuzeichnen (z. B. bei jeder
+// Mausbewegung im Editor) ganz herunterzurechnen, macht die Seite zäh. Gemerkt wird pro Bild
+// und Größenstufe (Zweierpotenzen), ein neues Bild bekommt automatisch neue Kopien.
+const previewCache = new WeakMap();
+function previewOf(img, needW) {
+  const step = 2 ** Math.ceil(Math.log2(Math.max(16, needW)));
+  if (img.width <= step * 1.5) return img;
+  let sizes = previewCache.get(img);
+  if (!sizes) previewCache.set(img, sizes = new Map());
+  if (!sizes.has(step)) {
+    const c = document.createElement('canvas');
+    c.width = step;
+    c.height = Math.max(1, Math.round(img.height * step / img.width));
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    sizes.set(step, c);
+  }
+  return sizes.get(step);
+}
+
 function drawSheet(i) {
   const cv = document.querySelector(`#sheets canvas[data-i="${i}"]`);
   const sh = state.result.sheets[i];
@@ -129,7 +151,7 @@ function drawSheet(i) {
     ctx.lineDashOffset = 0;
     ctx.setLineDash([]);
   }
-  for (const p of sh.placed) drawPiece(ctx, state.items[p.k].img, p, scale);
+  for (const p of sh.placed) drawPiece(ctx, previewOf(state.items[p.k].img, ((p.rot || 0) % 180 ? p.h : p.w) * scale), p, scale);
   if ($('showIssues').checked) {   // Problemstellen aus dem Druck-Check (nur Vorschau, nicht im Export)
     for (const p of sh.placed) {
       const it = state.items[p.k];

@@ -74,7 +74,7 @@ function runPrintCheck(it) {
   // fertige Raster nachgemessen (htcheck.js): zu kleine Punkte, zu kleine Löcher, Halbtransparenz.
   if (it.ht && it.ht.on) {
     if (it.img === it.base) return null;   // Raster wird gerade noch berechnet
-    const res = analyzePrint(it.img, it.img.width / wmm, { maxPixels: 12e6 });
+    const res = analyzePrint(it.img, it.img.width / wmm, { maxPixels: 6e6 });
     const ow = Math.max(1, Math.ceil(wmm)), oh = Math.max(1, Math.ceil(hmm));
     const ov = document.createElement('canvas');
     ov.width = ow; ov.height = oh;

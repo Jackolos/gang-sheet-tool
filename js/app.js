@@ -390,6 +390,7 @@ function refreshHalftoneUi(row, it) {
   }
   el.textContent = text;
   el.classList.toggle('low', i.squeezed || tooSmall);
+  el.classList.toggle('busy', ht.on && it.htKey === null && it.img === it.base);   // Raster wird noch berechnet
 }
 
 // Halftone-Werte setzen (aus einer Vorlage, „Optimal“ oder „Auf alle“) und neu rechnen
@@ -419,6 +420,9 @@ $('list').addEventListener('input', e => {
     const key = HT_FIELDS[field];
     it.ht[key] = typeof defaultHalftone()[key] === 'number' ? +v : v;
     refreshHalftoneUi(row, it);
+    // Regler: beim Ziehen nur Zahl und Infotext zeigen, neu gerechnet wird beim Loslassen („change“, unten).
+    // Sonst würde bei jeder kleinen Bewegung alles neu angeordnet und das Raster neu berechnet.
+    if (e.target.type === 'range') return;
   }
   if (field.startsWith('bg')) {
     if (field === 'bgOn') it.bg.on = e.target.checked;
@@ -448,6 +452,11 @@ $('list').addEventListener('input', e => {
     return;
   }
   update();
+});
+
+// Halftone-Regler losgelassen: jetzt neu rastern (siehe oben)
+$('list').addEventListener('change', e => {
+  if (e.target.type === 'range' && (e.target.dataset.field || '').startsWith('ht')) update();
 });
 
 // Dasselbe Bild als eigenen Eintrag anlegen (z. B. um es zusätzlich in einer anderen Größe zu drucken).

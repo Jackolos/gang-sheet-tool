@@ -252,7 +252,9 @@ function scheduleHalftones() {
       const key = JSON.stringify([it.baseVer, it.cm, it.sizeRef, dpi, it.ht]);
       if (it.htKey === key) continue;
       const row = rowOf(it), info = row && row.querySelector('.htinfo');
-      if (info) info.textContent = 'Raster wird berechnet …';
+      // Nur blass machen, nicht den Text austauschen: Ein kürzerer Text würde die Seite kürzer machen,
+      // und unten auf der Seite würde der Regler unter der Maus wegrutschen.
+      if (info) info.classList.add('busy');
       await new Promise(r => setTimeout(r, 30));   // Hinweis anzeigen lassen
       if (!state.items.includes(it)) continue;
       it.img = renderHalftone(it, dpi);
