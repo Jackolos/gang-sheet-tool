@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gang-Sheet-Konfigurator</title>
-<link rel="stylesheet" href="css/style.css?v=b479ee48">
+<link rel="stylesheet" href="css/style.css?v=66be36b8">
 <!-- Gewähltes Farbschema (hell/dunkel) sofort setzen, damit die Seite nicht kurz im falschen Modus aufblitzt -->
 <script>try { const t = localStorage.getItem('gangsheet.theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
@@ -29,6 +29,7 @@
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6 M12 7.5h.01"/></symbol>
   <symbol id="i-scan" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21 M8 10.5h5 M10.5 8v5"/></symbol>
   <symbol id="i-sheet" viewBox="0 0 24 24"><path d="M6 2h12v20H6z M9 6h6 M9 10h6 M9 14h3"/></symbol>
+  <symbol id="i-vector" viewBox="0 0 24 24"><path d="M4 18C8 6 16 6 20 18 M2 16h4v4H2z M18 16h4v4h-4z M10 3h4v4h-4z"/></symbol>
 </svg>
 
 <header class="topbar">
@@ -250,25 +251,47 @@
   </div>
 </dialog>
 
+<!-- Vektorisieren: Vorher/Nachher-Vergleich (vectorize.js) -->
+<dialog id="vecDlg">
+  <div class="mock-head">
+    <strong><svg class="i"><use href="#i-vector"/></svg>Vektorisieren: <span id="vName"></span></strong>
+    <button id="vClose" class="x" aria-label="Schließen">×</button>
+  </div>
+  <div class="vec-stage">
+    <canvas id="vCanvas"></canvas>
+    <div class="vlabels"><span>Vorher (Original)</span><span>Nachher (Druck)</span></div>
+    <small id="vState" class="vstate"></small>
+    <div class="zoombar">
+      <button id="vSave" class="mini ghost" title="Vektordatei in Druckgröße speichern"><svg class="i"><use href="#i-export"/></svg>SVG speichern</button>
+      <button id="vZoomOut" class="mini ghost" aria-label="Herauszoomen">−</button>
+      <span id="vZoomLbl">–</span>
+      <button id="vZoomIn" class="mini ghost" aria-label="Hineinzoomen">+</button>
+      <button id="vZoomFit" class="mini ghost">Einpassen</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- Reihenfolge ist wichtig: Einstellungen zuerst, die Hauptlogik zuletzt. -->
-<script src="js/config.js?v=b479ee48"></script>
-<script src="js/ui.js?v=b479ee48"></script>
-<script src="js/background.js?v=b479ee48"></script>
-<script src="js/ai-background.js?v=b479ee48"></script>
-<script src="js/packer.js?v=b479ee48"></script>
-<script src="js/contour.js?v=b479ee48"></script>
-<script src="js/export.js?v=b479ee48"></script>
-<script src="js/printcheck.js?v=b479ee48"></script>
-<script src="js/halftone.js?v=b479ee48"></script>
-<script src="js/htcheck.js?v=b479ee48"></script>
-<script src="js/testsheet.js?v=b479ee48"></script>
-<script src="js/app.js?v=b479ee48"></script>
-<script src="js/editor.js?v=b479ee48"></script>
-<script src="js/project.js?v=b479ee48"></script>
-<script src="js/mockup.js?v=b479ee48"></script>
-<script src="js/costs.js?v=b479ee48"></script>
-<script src="js/cmyk.js?v=b479ee48"></script>
-<script src="js/inspect.js?v=b479ee48"></script>
-<script src="js/selftest.js?v=b479ee48"></script>
+<script src="js/config.js?v=66be36b8"></script>
+<script src="js/ui.js?v=66be36b8"></script>
+<script src="js/background.js?v=66be36b8"></script>
+<script src="js/ai-background.js?v=66be36b8"></script>
+<script src="js/packer.js?v=66be36b8"></script>
+<script src="js/contour.js?v=66be36b8"></script>
+<script src="js/export.js?v=66be36b8"></script>
+<script src="js/printcheck.js?v=66be36b8"></script>
+<script src="js/halftone.js?v=66be36b8"></script>
+<script src="js/lib/imagetracer.js?v=66be36b8"></script>
+<script src="js/vectorize.js?v=66be36b8"></script>
+<script src="js/htcheck.js?v=66be36b8"></script>
+<script src="js/testsheet.js?v=66be36b8"></script>
+<script src="js/app.js?v=66be36b8"></script>
+<script src="js/editor.js?v=66be36b8"></script>
+<script src="js/project.js?v=66be36b8"></script>
+<script src="js/mockup.js?v=66be36b8"></script>
+<script src="js/costs.js?v=66be36b8"></script>
+<script src="js/cmyk.js?v=66be36b8"></script>
+<script src="js/inspect.js?v=66be36b8"></script>
+<script src="js/selftest.js?v=66be36b8"></script>
 </body>
 </html>

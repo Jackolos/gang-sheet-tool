@@ -495,3 +495,31 @@ button.sw.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--acc); }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 40px rgba(47, 140, 255, .25); } 50% { box-shadow: 0 0 80px rgba(47, 140, 255, .5); } }
 /* Wer im System „weniger Bewegung“ eingestellt hat, bekommt keine Animationen */
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- Vektorisieren (vectorize.js) ---------- */
+.vecctl { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.vecctl label.check { margin-top: 0; font-size: 13px; }
+.vecopts { margin: 6px 0 0 44px; display: flex; flex-direction: column; gap: 6px; }
+.vecopts output { color: var(--fg); font-weight: 600; }
+.vecopts .mlabel { margin-top: 4px; }
+.vecopts .mlabel small { text-transform: none; letter-spacing: 0; }
+.vecpresets button { font-size: 11.5px; padding: 4px 8px; }
+.vecpal { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vecpal button.vsw { position: relative; width: 24px; height: 24px; border-radius: 7px; }
+.vecpal button.vsw.clear { background: var(--checker) !important; }
+.vecpal button.vsw i { position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--acc); border: 1px solid var(--card); }
+.vsw-t { font-size: 11px; color: var(--mut); }
+.vecedit { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); }
+.vecinfo { font-size: 11.5px; color: var(--mut); transition: opacity .2s; }
+.vecinfo.low { color: var(--warn); }
+.vecinfo.busy { opacity: .6; cursor: progress; }
+.vecinfo:empty { display: none; }
+#vecDlg { width: min(1180px, 96vw); height: min(840px, 92vh); padding: 0; border: 1px solid var(--line-hi); border-radius: 18px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+#vecDlg[open] { display: flex; flex-direction: column; }
+.vec-stage { position: relative; flex: 1; min-height: 0; }
+#vCanvas { width: 100%; height: 100%; display: block; touch-action: none; background: var(--checker); cursor: grab; }
+.vlabels { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; pointer-events: none; }
+.vlabels span { padding: 4px 10px; border-radius: 8px; background: var(--header); border: 1px solid var(--line-hi); font-size: 12px; font-weight: 600; backdrop-filter: blur(10px); }
+.vstate { position: absolute; bottom: 14px; left: 14px; color: var(--fg); font-size: 12px; }
+.vstate:empty { display: none; }
+#vZoomLbl { font-size: 12px; min-width: 46px; text-align: center; color: var(--mut); font-variant-numeric: tabular-nums; }

@@ -4,6 +4,9 @@
 // Darin stecken: Blatt-Einstellungen, alle Motive als Bild (Original, damit man die Hintergrund-
 // Einstellungen später noch ändern kann), Größe, Stückzahl, Hintergrund-Einstellungen, das
 // KI-Ergebnis (damit die KI nicht neu rechnen muss) und die Anordnung auf den Blättern.
+// Seit dem Vektorisieren (03.10.2026) zusätzlich pro Motiv „vec“ (Einstellungen und Palette-Änderungen, nicht
+// das Ergebnis). Das ist nur ein neues, optionales Feld: Alte Dateien ohne „vec“ öffnen weiter mit Standardwerten,
+// deshalb bleibt PROJECT_VERSION = 1.
 
 const PROJECT_APP = 'gang-sheet-konfigurator';
 const PROJECT_VERSION = 1;
@@ -32,6 +35,7 @@ function saveProject() {
       bg: { ...it.bg },
       hardAlpha: it.hardAlpha,
       ht: { ...it.ht },
+      vec: { ...it.vec, edits: (it.vec.edits || []).map(e => ({ ...e })) },   // Vektorisieren (ohne Ergebnis, wird beim Öffnen neu berechnet)
       aiMask: it.ai.mask ? it.ai.mask.toDataURL('image/png') : null
     })),
     manual: state.manual,
@@ -102,6 +106,7 @@ async function openProject(file) {
       Object.assign(it.bg, saved.bg);
       it.hardAlpha = !!saved.hardAlpha;
       it.ht = { ...defaultHalftone(), ...(saved.ht || {}) };   // ältere Aufträge kennen kein Halftone
+      it.vec = { ...defaultVector(), ...(saved.vec || {}) };   // ältere Aufträge kennen kein Vektorisieren
       if (saved.aiMask) {
         const m = await loadDataUrl(saved.aiMask);
         const c = document.createElement('canvas');

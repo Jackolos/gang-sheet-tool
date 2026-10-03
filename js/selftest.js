@@ -510,6 +510,168 @@
     } finally { free(base, out); }
   });
 
+  // ---------- Vektorisieren (vectorize.js) ----------
+
+  // „Verpixeltes Logo“: 64 × 40 Pixel, Ring und zwei Balken auf Weiß, als stark komprimiertes JPG
+  // (mit Kompressionsartefakten) und wieder eingelesen – so wie Kunden es per WhatsApp schicken.
+  async function pixelLogo(colors = ['#111111'], quality = 0.45) {
+    const c = canvas(64, 40), ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 64, 40);
+    ctx.lineWidth = 5; ctx.strokeStyle = colors[0];
+    ctx.beginPath(); ctx.arc(20, 20, 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = colors[1] || colors[0]; ctx.fillRect(38, 8, 20, 9);
+    ctx.fillStyle = colors[2] || colors[0]; ctx.fillRect(38, 23, 20, 9);
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i); i.onerror = () => rej(new Error('JPG-Testbild konnte nicht geladen werden'));
+      i.src = c.toDataURL('image/jpeg', quality);
+    });
+    const out = canvas(64, 40);
+    out.getContext('2d').drawImage(img, 0, 0);
+    free(c);
+    return out;
+  }
+
+  // Vektorisieren wie im Tool: nachzeichnen, Palette anwenden, in Druckgröße (wmm breit, 300 dpi) zeichnen
+  async function vecRun(src, over, wmm, editFn) {
+    const vec = Object.assign(defaultVector(), { on: true }, over);
+    const res = await vectorizeTrace(src, vec);
+    if (editFn) editFn(res, vec);
+    const colors = vecFinalColors(res, vec), box = vecBounds(res, colors);
+    const px = vecTargetPx(wmm, wmm * box.h / box.w, DPI);
+    const img = vecRender(res, colors, box, px.w, px.h);
+    return { res, vec, colors, img };
+  }
+
+  // Farben der deckenden Pixel zählen
+  function opaqueColors(c) {
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, set = new Map();
+    let semi = 0, clear = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) { clear++; continue; }
+      if (d[i + 3] !== 255) { semi++; continue; }
+      const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      set.set(k, (set.get(k) || 0) + 1);
+    }
+    return { set, semi, clear, total: d.length / 4 };
+  }
+  const hexOf = k => '#' + k.toString(16).padStart(6, '0');
+
+  test('Vektorisieren: JPG-Logo mit 2 Farben → keine Halbtransparenz, höchstens 2 Farben', async () => {
+    const src = await pixelLogo();
+    const { res, img } = await vecRun(src, { auto: false, colors: 2 }, 60);
+    try {
+      const o = opaqueColors(img);
+      return { ok: o.semi === 0 && o.set.size <= 2 && o.set.size >= 1,
+        detail: `${img.width} × ${img.height} px, ${o.semi} halbtransparente Pixel, ${o.set.size} Farben im Ergebnis ` +
+          `(${[...o.set.keys()].map(hexOf).join(', ')}), Vorschlag Farbanzahl: ${res.suggested}` };
+    } finally { free(src, img); }
+  });
+
+  test('Vektorisieren: Farbanzahl wird passend vorgeschlagen (2 bzw. 4 Farben)', async () => {
+    const a = await pixelLogo(), b = await pixelLogo(['#d01818', '#1840c0', '#18a040']);
+    try {
+      const ra = await vectorizeTrace(a, Object.assign(defaultVector(), { on: true }));
+      const rb = await vectorizeTrace(b, Object.assign(defaultVector(), { on: true }));
+      return { ok: ra.suggested === 2 && rb.suggested === 4,
+        detail: `Schwarz auf Weiß: Vorschlag ${ra.suggested} (erwartet 2); Rot/Blau/Grün auf Weiß: Vorschlag ${rb.suggested} (erwartet 4)` };
+    } finally { free(a, b); }
+  });
+
+  test('Vektorisieren: durchsichtig gemachte Palettenfarbe (Weiß) verschwindet ganz', async () => {
+    const src = await pixelLogo();
+    const { img } = await vecRun(src, { auto: false, colors: 2 }, 60, (res, vec) => {
+      let w = 0;   // hellste Farbe = Hintergrund
+      res.palette.forEach((c, i) => { if (c.r + c.g + c.b > res.palette[w].r + res.palette[w].g + res.palette[w].b) w = i; });
+      // Weiß gibt es zweimal: als Hintergrund (mit dem Rand verbunden) und im Inneren des Rings
+      vec.edits = [{ from: vecHex(res.palette[w]), to: null }, { from: vecHex(res.palette[w]), to: null, bg: true }];
+    });
+    try {
+      const o = opaqueColors(img);
+      let light = 0;
+      for (const [k, n] of o.set) if (((k >> 16) & 255) + ((k >> 8) & 255) + (k & 255) > 3 * 128) light += n;
+      return { ok: o.semi === 0 && light === 0 && o.clear > 0.3 * o.total && o.set.size === 1,
+        detail: `${light} helle Pixel übrig, ${pct(o.clear / o.total)} durchsichtig, ${o.set.size} Druckfarbe, ${o.semi} halbtransparent` };
+    } finally { free(src, img); }
+  });
+
+  test('Vektorisieren: „Hintergrund durchsichtig“ lässt dieselbe Farbe im Motiv stehen', async () => {
+    const src = await pixelLogo();
+    let bgFound = false;
+    const { img } = await vecRun(src, { auto: true }, 60, (res, vec) => {
+      bgFound = res.bgLabel >= 0;
+      if (bgFound) vec.edits = [{ from: vecHex(res.palette[res.bgLabel]), to: null, bg: true }];
+    });
+    try {
+      // Mitte des Rings (Original 20/20 von 64 × 40) muss weiß bleiben, die Ecken durchsichtig
+      const d = img.getContext('2d').getImageData(0, 0, img.width, img.height).data;
+      const at = (fx, fy) => { const i = (Math.round(fy * (img.height - 1)) * img.width + Math.round(fx * (img.width - 1))) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]]; };
+      // Bild ist auf den sichtbaren Teil zugeschnitten (x 4,5–58, y 4,5–35,5): Ringmitte bei ca. 29 %/50 %, Lücke zwischen den Balken bei 81 %/50 %
+      const mid = at(0.29, 0.5), corner = at(0.81, 0.5);   // zwischen den Balken = Hintergrund
+      const o = opaqueColors(img);
+      const ok = bgFound && mid[3] === 255 && mid[0] > 200 && corner[3] === 0 && o.semi === 0;
+      return { ok, detail: `Hintergrund erkannt: ${bgFound ? 'ja' : 'nein'}; Ringmitte ${mid[3] ? 'deckend rgb(' + mid.slice(0, 3).join(',') + ')' : 'durchsichtig'}, ` +
+        `zwischen den Balken ${corner[3] ? 'deckend' : 'durchsichtig'}, ${o.semi} halbtransparent` };
+    } finally { free(src, img); }
+  });
+
+  test('Vektorisieren: Treppenstufen werden glatt (Kreis aus 24 Pixeln)', async () => {
+    // Harte Pixel-Kreisscheibe ohne Kantenglättung, Radius 10 px, auf durchsichtigem Grund
+    const N = 24, R = 10, src = fromAlpha(N, N, (x, y) => ((x + 0.5 - 12) ** 2 + (y + 0.5 - 12) ** 2 <= R * R ? 255 : 0));
+    const { img } = await vecRun(src, { auto: true, preset: 'logo' }, 40);
+    try {
+      // Vergleich mit dem idealen Kreis in Druckgröße; zum Vergleich das Original einfach vergrößert (Treppen)
+      const W = img.width, H = img.height, a = alphaOf(img);
+      const near = canvas(W, H), nctx = near.getContext('2d'), f = W / (2 * R);
+      nctx.imageSmoothingEnabled = false;
+      nctx.drawImage(src, (W - N * f) / 2, (H - N * f) / 2, N * f, N * f);
+      const b = alphaOf(near);
+      let errV = 0, errN = 0, inside = 0;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const ideal = ((x + 0.5 - W / 2) / (W / 2)) ** 2 + ((y + 0.5 - H / 2) / (H / 2)) ** 2 <= 1;
+        if (ideal) inside++;
+        if ((a[y * W + x] >= 128) !== ideal) errV++;
+        if ((b[y * W + x] >= 128) !== ideal) errN++;
+      }
+      free(near);
+      return { ok: errV < errN * 0.6,
+        detail: `Abweichung vom idealen Kreis: vektorisiert ${pct(errV / inside, 2)}, nur vergrößert ${pct(errN / inside, 2)}` };
+    } finally { free(src, img); }
+  });
+
+  test('Vektorisieren: Export bleibt hart und ohne Mischfarben (Drehung, Spiegeln)', async () => {
+    const src = await pixelLogo(['#d01818', '#1840c0', '#18a040']);
+    const { img, colors } = await vecRun(src, { auto: true }, 50);
+    const item = { img, ht: { on: false }, hardAlpha: false, vec: { on: true } };
+    const pal = new Set(colors.filter(Boolean).map(h => parseInt(h.slice(1), 16)));
+    let semi = 0, extra = 0;
+    try {
+      for (const rot of [0, 90, 180, 270]) for (const mirror of [false, true]) {
+        const wmm = img.width / PPM, hmm = img.height / PPM, turned = rot % 180 !== 0;
+        const p = { k: 0, x: 3.3, y: 4.7, w: turned ? hmm : wmm, h: turned ? wmm : hmm, rot };
+        const sheet = renderSheetCanvas({ placed: [p] }, [item], { dpi: DPI, sheetW: 70, sheetH: 70, mirror });
+        const o = opaqueColors(sheet);
+        semi += o.semi;
+        for (const k of o.set.keys()) if (!pal.has(k)) extra++;
+        free(sheet);
+      }
+    } finally { free(src, img); }
+    return { ok: semi === 0 && extra === 0, detail: `${semi} halbtransparente Pixel, ${extra} Mischfarben außerhalb der Palette (${pal.size} Farben)` };
+  });
+
+  test('Vektorisieren: dünne Linie (0,3 mm) wird im Druck-Check gemeldet', async () => {
+    // 100 × 60 px, Linie 3 px dick, durchsichtiger Grund; Druckbreite 1 cm → 1 px = 0,1 mm → Linie 0,3 mm
+    const c = canvas(100, 60), ctx = c.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(5, 5, 30, 50); ctx.fillRect(35, 28, 60, 3);
+    const { img } = await vecRun(c, { auto: false, colors: 2, preset: 'fine', speck: 0 }, 10);
+    try {
+      const it = { img, cm: 1, sizeRef: 'w', ratio: img.height / img.width, ht: { on: false }, vec: { on: true } };
+      const r = runPrintCheck(it);
+      return { ok: r.thin > 0 && checkMessages({ ...it, check: r }).some(m => m.startsWith('Nach dem Vektorisieren')),
+        detail: `als zu dünn markiert: ${num(r.thin, 2)} mm²` };
+    } finally { free(c, img); }
+  });
+
   // ---------- öffentliche Funktionen ----------
   window.runSelfTest = async function runSelfTest(onProgress) {
     const results = [];
@@ -535,7 +697,7 @@
   window.selfTestReport = function selfTestReport(results) {
     const okN = results.filter(r => r.ok).length, ms = results.reduce((s, r) => s + (r.ms || 0), 0);
     const lines = [
-      `Selbsttest Halftone/Export: ${okN} von ${results.length} Tests bestanden (${num(ms / 1000, 1)} s)`,
+      `Selbsttest Halftone/Export/Vektorisieren: ${okN} von ${results.length} Tests bestanden (${num(ms / 1000, 1)} s)`,
       okN === results.length ? 'Alles in Ordnung: Die Druckdaten sind DTF-tauglich.' : 'ACHTUNG: Mindestens ein Test ist fehlgeschlagen (siehe unten).',
       ''
     ];

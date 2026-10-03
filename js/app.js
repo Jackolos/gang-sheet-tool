@@ -92,6 +92,7 @@ function addMotif(img, name) {
     hardAlpha: false,    // „Halbtransparenz beheben“ (Druck-Check)
     check: null,         // Ergebnis des Druck-Checks (printcheck.js)
     ht: defaultHalftone(),   // Halftone-Einstellungen (halftone.js)
+    vec: defaultVector(),    // Vektorisieren (vectorize.js); vecInput/vecRes/vecShown werden dort berechnet
     base: null,          // freigestelltes Motiv vor dem Halftone; img = base oder das gerasterte Bild
     baseVer: 0,
     htKey: null,
@@ -113,6 +114,16 @@ function processItem(it) {
       c = removeBackground(it.src, it.bg).canvas;
     }
   }
+  it.inVer = (it.inVer || 0) + 1;   // Eingangsbild hat sich ggf. geändert (Vektorisieren rechnet dann neu)
+  if (it.vec && it.vec.on) {
+    // Vektorisieren: Eingangsbild merken, nachgezeichnet wird verzögert (scheduleVectors). Ein schon
+    // vorhandenes Vektor-Ergebnis bleibt so lange sichtbar, damit das Motiv nicht kurz verpixelt aufblitzt.
+    it.vecInput = trimTransparent(c);
+    if (it.vecShown) return;
+  } else {
+    it.vecInput = null;
+  }
+  it.vecShown = false;
   if (it.hardAlpha) c = hardenAlpha(c);
   it.base = trimTransparent(c);
   it.img = it.base;            // ein eingeschaltetes Halftone wird danach neu berechnet (scheduleHalftones)
@@ -276,6 +287,7 @@ function renderList() {
           </div>
           <small class="bgnote"></small>
         </div>
+        ${vecRowHtml(it)}
         <div class="htctl">
           <label class="check"><input type="checkbox" data-field="htOn" ${it.ht.on ? 'checked' : ''}> <span>Halftone (Raster) <small>Verläufe bzw. eine Farbe als Punkte drucken</small></span></label>
           <div class="htopts" ${it.ht.on ? '' : 'hidden'}>
@@ -361,6 +373,7 @@ function refreshRow(row, it) {
   el.classList.toggle('low', warn);
   refreshCheck(row, it);
   refreshHalftoneUi(row, it);
+  refreshVectorUi(row, it);
 }
 
 // Halftone-Bereich einer Zeile: Optionen ein-/ausblenden, Werte und Punktgröße anzeigen
@@ -412,6 +425,7 @@ $('list').addEventListener('input', e => {
   const field = e.target.dataset.field;
   if (!row || !field) return;
   const it = state.items[+row.dataset.k];
+  if (field.startsWith('vec')) { onVectorInput(it, row, e.target, field); return; }
   if (field === 'cm') it.cm = Math.max(0.5, +e.target.value || 0.5);
   if (field === 'qty') it.qty = Math.max(1, Math.floor(+e.target.value || 1));
   if (field === 'sizeRef') it.sizeRef = e.target.value;
@@ -456,7 +470,7 @@ $('list').addEventListener('input', e => {
 
 // Halftone-Regler losgelassen: jetzt neu rastern (siehe oben)
 $('list').addEventListener('change', e => {
-  if (e.target.type === 'range' && (e.target.dataset.field || '').startsWith('ht')) update();
+  if (e.target.type === 'range' && /^(ht|vec)/.test(e.target.dataset.field || '')) update();
 });
 
 // Dasselbe Bild als eigenen Eintrag anlegen (z. B. um es zusätzlich in einer anderen Größe zu drucken).
@@ -470,6 +484,8 @@ function duplicateItem(k) {
     bg: { ...o.bg },
     ai: { mask: o.ai.mask, busy: false, status: '', error: '' },   // KI-Ergebnis mitnehmen, kein Neurechnen
     ht: { ...o.ht },
+    vec: { ...o.vec, edits: o.vec.edits.map(x => ({ ...x })) },   // Vektor-Ergebnis (vecRes) wird mitbenutzt
+    vecSel: -1,
     timer: null
   };
   state.items.push(it);
@@ -528,6 +544,7 @@ $('list').addEventListener('click', e => {
   if (row && e.target.closest('[data-inspect]')) { inspectItem(+row.dataset.k); return; }
   // Halftone-Knöpfe
   const it = row && state.items[+row.dataset.k];
+  if (it && onVectorClick(it, row, e.target)) return;
   const preset = e.target.closest('[data-htpreset]');
   if (it && preset) {
     const p = HT_PRESETS.find(x => x.id === preset.dataset.htpreset);
@@ -626,6 +643,7 @@ function update(opts = {}) {
   $('editHint').hidden = sheets.length === 0;
   renderSheets();
   updateEditbar();
+  scheduleVectors();   // Vektorisieren in Druckgröße (neu zeichnen, wenn sich Größe/dpi/Einstellungen ändern)
   scheduleHalftones(); // Halftones neu rastern, wenn sich Größe/dpi/Einstellungen geändert haben
   scheduleChecks();   // Druck-Check für geänderte Motive (läuft kurz verzögert)
   if (typeof renderCosts === 'function') renderCosts();   // costs.js wird als Letztes geladen

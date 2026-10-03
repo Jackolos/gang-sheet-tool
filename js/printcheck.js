@@ -223,7 +223,8 @@ function checkMessages(it) {
     if (out.length) out.push('Mit „Prüfen“ lassen sich die Stellen vergrößert ansehen.');
     return out;
   }
-  if (c.thin) out.push(`Feine Linien/Details unter ${String(CONFIG.minLineMm).replace('.', ',')} mm (rot markiert) drucken oft nicht sauber. Motiv größer machen oder Linien verstärken.`);
+  if (c.thin && it.vec && it.vec.on) out.push(`Nach dem Vektorisieren: Linien/Details unter ${String(CONFIG.minLineMm).replace('.', ',')} mm (rot markiert) drucken oft nicht sauber. Motiv größer machen oder „Kleine Flecken entfernen“ erhöhen.`);
+  else if (c.thin) out.push(`Feine Linien/Details unter ${String(CONFIG.minLineMm).replace('.', ',')} mm (rot markiert) drucken oft nicht sauber. Motiv größer machen oder Linien verstärken.`);
   if (c.semi) out.push('Halbtransparente Flächen (orange markiert) werden oft fleckig gedruckt.');
   if (c.specks) out.push(`${c.specks} winzige${c.specks === 1 ? 's Einzelteil' : ' Einzelteile'} unter ${CONFIG.minDetailMm2} mm² (lila markiert) können beim Abziehen hängen bleiben.`);
   return out;

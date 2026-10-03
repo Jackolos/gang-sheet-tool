@@ -31,7 +31,8 @@ function renderSheetCanvas(sheet, items, s) {
   const hard = new Map();   // pro Motiv/Drehung/Größe nur einmal rechnen (bei vielen Kopien)
   for (const p of sheet.placed) {
     const it = items[p.k];
-    if (!(it.ht && it.ht.on) && !it.hardAlpha) { drawPiece(ctx, it.img, p, pxPerMm); continue; }
+    // Vektorisierte Motive liegen schon hart in Druckgröße vor und laufen ebenfalls über hardPiece.
+    if (!(it.ht && it.ht.on) && !it.hardAlpha && !(it.vec && it.vec.on)) { drawPiece(ctx, it.img, p, pxPerMm); continue; }
     // Halftone / „Halbtransparenz beheben“: Beim normalen Zeichnen auf eine Position zwischen zwei Pixeln
     // glättet der Browser die Kanten, und jeder Punkt bekäme wieder einen halbtransparenten Rand
     // (gemessen: 28 % der Farbpixel). Deshalb in Druckgröße vorbereiten, hart machen und pixelgenau setzen.
