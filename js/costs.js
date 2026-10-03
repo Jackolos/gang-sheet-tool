@@ -6,6 +6,7 @@
 // genauso auf alle Motive aller Blätter verteilt. Zusammen ergibt das genau den Rechnungsbetrag.
 //
 // Die Anbieter werden im Browser gespeichert (localStorage), damit sie beim nächsten Mal noch da sind.
+// Ist man angemeldet (cloud.js), landen sie zusätzlich in der Cloud und gelten auf allen Geräten der Firma.
 
 const COST_KEY = 'gangsheet.anbieter';
 const costs = { providers: [], selected: 0 };
@@ -22,6 +23,7 @@ function loadProviders() {
 
 function saveProviders() {
   try { localStorage.setItem(COST_KEY, JSON.stringify(costs)); } catch { /* nicht schlimm */ }
+  if (typeof gsCloudSettingsChanged === 'function') gsCloudSettingsChanged();   // angemeldet: auch in die Cloud (cloud.js)
 }
 
 // Kosten für einen Anbieter berechnen

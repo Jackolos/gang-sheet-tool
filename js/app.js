@@ -9,7 +9,9 @@ const state = {
   manual: false,                       // true = Anordnung wurde von Hand bearbeitet
   nextId: 0,
   changes: 0,                          // zählt jede Änderung (für „ungespeicherte Änderungen“)
-  savedChanges: 0                      // Stand beim letzten Speichern/Öffnen
+  savedChanges: 0,                     // Stand beim letzten Speichern/Öffnen
+  kalkulator: null,                    // { jobId, jobName, kunde }, wenn der Auftrag aus dem DTF-Kalkulator kommt (kalkulator.js)
+  cloudProject: null                   // { id, name } des zuletzt in der Cloud gespeicherten/geöffneten Auftrags (cloud.js)
 };
 
 // Aktuelle Einstellungen aus den Eingabefeldern lesen (Maße in mm).
@@ -647,6 +649,7 @@ function update(opts = {}) {
   scheduleHalftones(); // Halftones neu rastern, wenn sich Größe/dpi/Einstellungen geändert haben
   scheduleChecks();   // Druck-Check für geänderte Motive (läuft kurz verzögert)
   if (typeof renderCosts === 'function') renderCosts();   // costs.js wird als Letztes geladen
+  if (typeof kalkUi === 'function') kalkUi();             // Knopf „Ergebnis an Kalkulator senden“ (kalkulator.js)
 }
 
 // Zeichnet jedes Blatt als verkleinerte Vorschau (ungespiegelt, so wie das Motiv später aussieht).

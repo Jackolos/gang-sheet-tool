@@ -523,3 +523,56 @@ button.sw.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--acc); }
 .vstate { position: absolute; bottom: 14px; left: 14px; color: var(--fg); font-size: 12px; }
 .vstate:empty { display: none; }
 #vZoomLbl { font-size: 12px; min-width: 46px; text-align: center; color: var(--mut); font-variant-numeric: tabular-nums; }
+
+/* ---------- Cloud (cloud.js): Anzeige in der Kopfzeile, Menü, Fenster ---------- */
+.cloudbox { position: relative; }
+.cloudchip { max-width: 190px; }
+.cloudchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloudchip.on { border-color: var(--acc); color: var(--acc-hi); }
+.cloudchip.on svg.i { color: var(--info); }
+.cloudchip.err svg.i { color: var(--warn); }
+.cloudmenu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; width: 290px; max-width: calc(100vw - 24px); padding: 6px;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--card); border: 1px solid var(--line-hi); border-radius: 12px; box-shadow: var(--shadow);
+}
+.cloudmenu button { justify-content: flex-start; width: 100%; height: auto !important; padding: 8px 10px; border: 0; background: transparent; color: var(--fg); border-radius: 8px; text-align: left; box-shadow: none; }
+.cloudmenu button:hover, .cloudmenu button:focus-visible { background: var(--acc-soft); color: var(--acc-hi); transform: none; }
+.cloudmenu button.primary { background: var(--acc); color: var(--on); justify-content: center; margin-top: 4px; }
+.cloudmenu button.on { color: var(--acc-hi); }
+.cloudmenu .gshead { padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 2px; }
+.cloudmenu .gshead small { color: var(--mut); font-size: 12px; line-height: 1.4; }
+.cloudmenu .gssep { border-top: 1px solid var(--line); margin: 4px 6px 0; padding-top: 6px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--mut); }
+.cloudmenu .gssep:empty { padding-top: 0; }
+.gsdlg { text-align: left; width: min(460px, 92vw); }
+.gsdlg.wide { width: min(640px, 94vw); }
+.gsdlg h3 { margin-bottom: 10px; }
+.gsdlg .gsbody { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.gsdlg .gsbody p { margin: 0; }
+.gsdlg .dlg-actions { justify-content: flex-end; }
+.gsdlg .dlg-actions button { min-width: 0; }
+.gsdlg input[type=email] {
+  width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--field); color: var(--fg); font: inherit; font-size: 14px;
+}
+.gsdlg input[type=email]:focus { outline: none; border-color: var(--acc); box-shadow: var(--glow); }
+.gsinfo { color: var(--mut); font-size: 13px; }
+.gsinfo.low { color: var(--warn); }
+.gsdlg progress { width: 100%; height: 8px; accent-color: var(--acc); }
+.gslist { display: flex; flex-direction: column; gap: 6px; max-height: min(60vh, 520px); overflow: auto; }
+.gsrow { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; }
+.gsrow.on { border-color: var(--acc); }
+.gsthumb { width: 44px; height: 64px; display: grid; place-items: center; background: var(--checker); border-radius: 4px; overflow: hidden; }
+.gsthumb img { max-width: 100%; max-height: 100%; }
+.gsmeta { min-width: 0; display: flex; flex-direction: column; }
+.gsmeta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsmeta small { color: var(--mut); font-size: 12px; }
+.actions button span, .actions .btn span { white-space: nowrap; }
+@media (max-width: 1500px) { .cloudbtn span { display: none; } }
+@media (max-width: 760px) { .cloudchip span { display: none; } }
+
+/* ---------- Auftrag aus dem DTF-Kalkulator (kalkulator.js) ---------- */
+.kalkbox { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--acc); border-radius: 12px; background: var(--acc-soft); display: flex; flex-direction: column; gap: 6px; }
+.kalkhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kalkhead strong { flex: 1; min-width: 160px; font-size: 13.5px; }
+.kalkbox .low { color: var(--warn); font-size: 12.5px; }

@@ -672,6 +672,92 @@
     } finally { free(c, img); }
   });
 
+  // ---------- Cloud und Übergabe an den Kalkulator (ohne Netz, ohne Anmeldung) ----------
+  // Geprüft werden nur die Umwandlungen; die Seite und Max' Daten bleiben unberührt.
+
+  const tinyPng = color => { const c = canvas(4, 3), ctx = c.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0, 0, 4, 3); const u = c.toDataURL('image/png'); free(c); return u; };
+
+  test('Cloud: Auftrag → Cloud-Format mit Bildpfaden und zurück', async () => {
+    const rot = tinyPng('#ff0000'), blau = tinyPng('#0000ff'), maske = tinyPng('#ffffff');
+    const data = {
+      app: PROJECT_APP, version: PROJECT_VERSION, saved: '2026-10-03T12:00:00.000Z',
+      settings: { sheetWCm: 56, sheetHCm: 100, marginMm: 5, gapMm: 5, dpi: 300, mirror: false, rotate: true, contour: false },
+      items: [
+        { name: 'A', image: rot, cm: 10, sizeRef: 'w', qty: 3, bg: { on: false }, hardAlpha: false, ht: { on: false }, vec: { on: false, edits: [] }, aiMask: null },
+        { name: 'A (Kopie)', image: rot, cm: 5, sizeRef: 'h', qty: 1, bg: { on: false }, hardAlpha: true, ht: { on: false }, vec: { on: false, edits: [] }, aiMask: null },
+        { name: 'Foto', image: blau, cm: 20, sizeRef: 'max', qty: 2, bg: { on: true, method: 'ai' }, hardAlpha: false, ht: { on: false }, vec: { on: false, edits: [] }, aiMask: maske }
+      ],
+      manual: true, sheets: [[{ k: 0, x: 5, y: 5, w: 100, h: 50, rot: 90 }]], kalkulator: { jobId: 'A-17', jobName: 'Verein', kunde: 'TSV' }
+    };
+    const { doc, dateien } = gsProjektZuCloud(data, 'firma-1', 'proj-9');
+    const pfadOk = p => /^firma-1\/gangsheets\/proj-9\/\d+\.png$/.test(p);
+    const text = JSON.stringify(doc);
+    const store = new Map(dateien.map(d => [d.pfad, d.dataUrl]));
+    const back = await gsProjektAusCloud(doc, async p => store.get(p));
+    // Reihenfolge der Felder egal: sortiert vergleichen
+    const canon = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x);
+    const same = canon(back) === canon(data);
+    const ok = !text.includes('data:image') && dateien.length === 3 && dateien.every(d => pfadOk(d.pfad)) &&
+      doc.items[0].imagePath === doc.items[1].imagePath && doc.items[2].aiMaskPath && doc.items[0].aiMaskPath === null &&
+      same && checkProjectData(back, 'test') === '';
+    return { ok, detail: `${dateien.length} Bilder (doppeltes Bild nur einmal), keine Data-URL im Cloud-Datensatz: ${!text.includes('data:image')}, Rückweg identisch: ${same}` };
+  });
+
+  test('Cloud: Einstellungen ohne ICC-Profil, kaputte Werte werden gesäubert', () => {
+    const d = gsEinstellungenDaten();
+    const keys = Object.keys(d).sort().join(',');
+    const noIcc = !/icc|profil/i.test(JSON.stringify(d));
+    const v = gsEinstellungenPruefen({
+      anbieter: { providers: [{ name: 'MAVI', price: '12.5', shipping: -3 }, null, 'kaputt'], selected: 9 },
+      druckbereiche: { 'tshirt|front': { w: 30, h: 40, y: 8 }, 'cap|front': { w: -1, h: 5, y: 0 } }
+    });
+    const ok = keys === 'anbieter,druckbereiche,geaendert' && noIcc && v.providers.length === 1 && v.providers[0].price === 12.5 &&
+      v.providers[0].shipping === 0 && v.selected === 0 && Object.keys(v.areas).join() === 'tshirt|front' &&
+      gsEinstellungenPruefen(null).providers === null;
+    return { ok, detail: `Felder: ${keys}; ohne ICC: ${noIcc}; gesäubert: ${v.providers.length} Anbieter, ${Object.keys(v.areas).length} Druckbereich` };
+  });
+
+  test('Übergabe: Kalkulator-Paket → Motive (Breite, Stückzahl, ohne Bild, Folienbreite)', () => {
+    const p = {
+      id: 'an-konfigurator', erstellt: '2026-10-03T12:00:00.000Z', quelle: 'kalkulator', jobId: 'A-17', jobName: 'Verein', kunde: 'TSV',
+      motive: [
+        { name: 'Logo', img: tinyPng('#00ff00'), w: 8.5, h: 4, anzahl: 20 },
+        { name: 'Rücken', img: null, w: 28, h: 35, anzahl: 5 },
+        { name: '', img: 'kein-bild', w: 0, h: 0, anzahl: 0 }
+      ],
+      anbieter: { name: 'MAVI', breite: 56 }, abstand: 0.5
+    };
+    const r = kalkPaketZuMotiven(p);
+    const m = r.motive[0];
+    const schlecht = kalkPaketZuMotiven({ motive: [], anbieter: { breite: 0 }, abstand: 'x' });
+    const ok = r.motive.length === 1 && m.cm === 8.5 && m.sizeRef === 'w' && m.qty === 20 && m.name === 'Logo' &&
+      r.ohneBild.length === 2 && r.ohneBild[0].name === 'Rücken' && r.ohneBild[1].anzahl === 1 &&
+      r.blattBreiteCm === 56 && r.abstandMm === 5 && r.jobId === 'A-17' && r.jobName === 'Verein' &&
+      schlecht.blattBreiteCm === null && schlecht.abstandMm === null;
+    return { ok, detail: `${r.motive.length} Motiv mit Bild (${m.cm} cm × ${m.qty}), ${r.ohneBild.length} ohne Bild, Blatt ${r.blattBreiteCm} cm, Abstand ${r.abstandMm} mm` };
+  });
+
+  test('Übergabe: Ergebnis-Paket an den Kalkulator (Blätter, Länge, Bedeckung)', () => {
+    const sheets = [{ placed: [{ k: 0, w: 100, h: 100 }, { k: 1, w: 200, h: 100 }] }, { placed: [{ k: 0, w: 100, h: 100 }] }];
+    const items = [{ coverage: 0.5 }, { coverage: 1 }];
+    const p = kalkErgebnisPaket(sheets, items, { sheetW: 560, sheetH: 1000 }, { jobId: 'A-17', jobName: 'Verein' });
+    const b1 = (100 * 100 * 0.5 + 200 * 100) / (560 * 1000), b2 = (100 * 100 * 0.5) / (560 * 1000);
+    const ok = p.id === 'an-kalkulator' && p.quelle === 'konfigurator' && p.jobId === 'A-17' && p.blaetter.length === 2 &&
+      p.blaetter[0].breiteCm === 56 && p.blaetter[0].laengeCm === 100 && Math.abs(p.blaetter[0].bedeckung - b1) < 1e-4 &&
+      Math.abs(p.blaetter[1].bedeckung - b2) < 1e-4 && p.gesamtLaengeCm === 200 && p.anzahlMotive === 3 && !isNaN(Date.parse(p.erstellt));
+    return { ok, detail: `2 Blätter, ${p.gesamtLaengeCm} cm, Bedeckung ${pct(p.blaetter[0].bedeckung)} / ${pct(p.blaetter[1].bedeckung)}` };
+  });
+
+  test('Übergabe: IndexedDB speichern, lesen, löschen', async () => {
+    const id = 'selbsttest-' + Date.now();   // eigenes Paket, die echten Pakete bleiben unberührt
+    await uebergabeSchreiben({ id, erstellt: new Date().toISOString(), wert: [1, 2, 3] });
+    const gelesen = await uebergabeLesen(id);
+    await uebergabeLoeschen(id);
+    const weg = await uebergabeLesen(id);
+    const ok = !!gelesen && gelesen.wert.join() === '1,2,3' && weg === null;
+    return { ok, detail: ok ? 'Paket gespeichert, gelesen und wieder gelöscht' : 'Übergabe-Speicher arbeitet nicht richtig' };
+  });
+
   // ---------- öffentliche Funktionen ----------
   window.runSelfTest = async function runSelfTest(onProgress) {
     const results = [];
@@ -697,7 +783,7 @@
   window.selfTestReport = function selfTestReport(results) {
     const okN = results.filter(r => r.ok).length, ms = results.reduce((s, r) => s + (r.ms || 0), 0);
     const lines = [
-      `Selbsttest Halftone/Export/Vektorisieren: ${okN} von ${results.length} Tests bestanden (${num(ms / 1000, 1)} s)`,
+      `Selbsttest Halftone/Export/Vektorisieren/Cloud/Übergabe: ${okN} von ${results.length} Tests bestanden (${num(ms / 1000, 1)} s)`,
       okN === results.length ? 'Alles in Ordnung: Die Druckdaten sind DTF-tauglich.' : 'ACHTUNG: Mindestens ein Test ist fehlgeschlagen (siehe unten).',
       ''
     ];

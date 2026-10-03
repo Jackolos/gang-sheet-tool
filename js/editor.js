@@ -506,6 +506,8 @@ $('clearAll').addEventListener('click', async () => {
   editor.sel = null;
   editor.multi = new Set();
   state.manual = false;
+  state.kalkulator = null;      // neuer Auftrag: nicht mehr mit dem Kalkulator-Auftrag verknüpft
+  state.cloudProject = null;
   renderList();
   update();
   toast('Alle Motive entfernt.');

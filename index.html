@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gang-Sheet-Konfigurator</title>
-<link rel="stylesheet" href="css/style.css?v=66be36b8">
+<link rel="stylesheet" href="css/style.css?v=adb45adf">
 <!-- Gewähltes Farbschema (hell/dunkel) sofort setzen, damit die Seite nicht kurz im falschen Modus aufblitzt -->
 <script>try { const t = localStorage.getItem('gangsheet.theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
@@ -30,6 +30,10 @@
   <symbol id="i-scan" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21 M8 10.5h5 M10.5 8v5"/></symbol>
   <symbol id="i-sheet" viewBox="0 0 24 24"><path d="M6 2h12v20H6z M9 6h6 M9 10h6 M9 14h3"/></symbol>
   <symbol id="i-vector" viewBox="0 0 24 24"><path d="M4 18C8 6 16 6 20 18 M2 16h4v4H2z M18 16h4v4h-4z M10 3h4v4h-4z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></symbol>
+  <symbol id="i-cloud-up" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9 M12 20v-7 M9.5 15.5 12 13l2.5 2.5"/></symbol>
+  <symbol id="i-cloud-down" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9 M12 12v8 M9.5 17.5 12 20l2.5-2.5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3 10 14 M21 3l-7 18-4-7-7-4z"/></symbol>
 </svg>
 
 <header class="topbar">
@@ -41,7 +45,14 @@
     <button id="saveProject" class="ghost" title="Auftrag als Datei speichern"><svg class="i"><use href="#i-save"/></svg><span>Speichern</span></button>
     <label class="btn ghost" for="openProject" title="Gespeicherten Auftrag öffnen"><svg class="i"><use href="#i-open"/></svg><span>Öffnen</span></label>
     <input id="openProject" type="file" accept=".json,application/json">
+    <button id="cloudSave" class="ghost cloudbtn" title="Auftrag in der Cloud deiner Firma speichern" hidden><svg class="i"><use href="#i-cloud-up"/></svg><span>In Cloud speichern</span></button>
+    <button id="cloudOpen" class="ghost cloudbtn" title="Auftrag aus der Cloud deiner Firma öffnen" hidden><svg class="i"><use href="#i-cloud-down"/></svg><span>Aus Cloud öffnen</span></button>
     <button id="inspectBtn" class="ghost" title="Eine fertige Druckdatei (PNG) auf DTF-Probleme prüfen und reparieren"><svg class="i"><use href="#i-scan"/></svg><span>Datei prüfen</span></button>
+    <!-- Cloud-Anzeige (cloud.js): Firma / „Nicht angemeldet“; unsichtbar, wenn die Cloud nicht eingerichtet ist -->
+    <div id="gsCloudBox" class="cloudbox" hidden>
+      <button id="gsCloudChip" class="ghost cloudchip" aria-haspopup="menu" aria-expanded="false"><svg class="i"><use href="#i-cloud"/></svg><span id="gsCloudLabel">Nicht angemeldet</span></button>
+      <div id="gsCloudMenu" class="cloudmenu" role="menu" hidden></div>
+    </div>
     <button id="themeToggle" class="ghost icon" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"><svg class="i"><use href="#i-sun"/></svg></button>
     <button id="expAll" class="primary" title="Alle Blätter als druckfertige PNG-Dateien speichern" hidden><svg class="i"><use href="#i-export"/></svg><span id="expLabel">Exportieren</span></button>
   </div>
@@ -98,6 +109,13 @@
       <div><span>Blätter</span><strong id="sBlatt">–</strong></div>
       <div><span>Motive</span><strong id="sMotive">–</strong></div>
       <div><span>Auslastung</span><strong id="sAusl">–</strong></div>
+    </div>
+    <!-- Auftrag aus dem DTF-Kalkulator (kalkulator.js) -->
+    <div id="kalkBox" class="kalkbox" hidden>
+      <div class="kalkhead"><strong id="kalkTitle"></strong>
+        <button id="kalkSend" class="mini primary" title="Blattanzahl, Länge und Bedeckung an den DTF-Kalkulator übergeben"><svg class="i"><use href="#i-send"/></svg>Ergebnis an Kalkulator senden</button>
+        <button id="kalkForget" class="x" title="Verknüpfung mit dem Kalkulator-Auftrag lösen" aria-label="Verknüpfung lösen">×</button></div>
+      <small id="kalkMissing" class="low" hidden></small>
     </div>
     <p id="msg"></p>
     <p id="checkSummary" class="low"></p>
@@ -272,26 +290,30 @@
 </dialog>
 
 <!-- Reihenfolge ist wichtig: Einstellungen zuerst, die Hauptlogik zuletzt. -->
-<script src="js/config.js?v=66be36b8"></script>
-<script src="js/ui.js?v=66be36b8"></script>
-<script src="js/background.js?v=66be36b8"></script>
-<script src="js/ai-background.js?v=66be36b8"></script>
-<script src="js/packer.js?v=66be36b8"></script>
-<script src="js/contour.js?v=66be36b8"></script>
-<script src="js/export.js?v=66be36b8"></script>
-<script src="js/printcheck.js?v=66be36b8"></script>
-<script src="js/halftone.js?v=66be36b8"></script>
-<script src="js/lib/imagetracer.js?v=66be36b8"></script>
-<script src="js/vectorize.js?v=66be36b8"></script>
-<script src="js/htcheck.js?v=66be36b8"></script>
-<script src="js/testsheet.js?v=66be36b8"></script>
-<script src="js/app.js?v=66be36b8"></script>
-<script src="js/editor.js?v=66be36b8"></script>
-<script src="js/project.js?v=66be36b8"></script>
-<script src="js/mockup.js?v=66be36b8"></script>
-<script src="js/costs.js?v=66be36b8"></script>
-<script src="js/cmyk.js?v=66be36b8"></script>
-<script src="js/inspect.js?v=66be36b8"></script>
-<script src="js/selftest.js?v=66be36b8"></script>
+<script src="js/config.js?v=adb45adf"></script>
+<script src="js/ui.js?v=adb45adf"></script>
+<script src="js/background.js?v=adb45adf"></script>
+<script src="js/ai-background.js?v=adb45adf"></script>
+<script src="js/packer.js?v=adb45adf"></script>
+<script src="js/contour.js?v=adb45adf"></script>
+<script src="js/export.js?v=adb45adf"></script>
+<script src="js/printcheck.js?v=adb45adf"></script>
+<script src="js/halftone.js?v=adb45adf"></script>
+<script src="js/lib/imagetracer.js?v=adb45adf"></script>
+<script src="js/vectorize.js?v=adb45adf"></script>
+<script src="js/htcheck.js?v=adb45adf"></script>
+<script src="js/testsheet.js?v=adb45adf"></script>
+<script src="js/app.js?v=adb45adf"></script>
+<script src="js/editor.js?v=adb45adf"></script>
+<script src="js/project.js?v=adb45adf"></script>
+<script src="js/mockup.js?v=adb45adf"></script>
+<script src="js/costs.js?v=adb45adf"></script>
+<script src="js/cmyk.js?v=adb45adf"></script>
+<script src="js/inspect.js?v=adb45adf"></script>
+<script src="js/cloud-config.js?v=adb45adf"></script>
+<script src="js/cloud.js?v=adb45adf"></script>
+<script src="js/uebergabe.js?v=adb45adf"></script>
+<script src="js/kalkulator.js?v=adb45adf"></script>
+<script src="js/selftest.js?v=adb45adf"></script>
 </body>
 </html>

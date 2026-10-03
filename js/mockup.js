@@ -44,6 +44,7 @@ const SIZE_PRESETS = {
 // areas: selbst eingestellte Druckbereiche je Kleidungsstück und Seite, z. B. areas['hoodie|back'] =
 //   { w, h, y } in cm (y = Abstand der Oberkante vom Kragen). Ohne Eintrag gilt der berechnete Standard.
 //   Gespeichert im Browser (localStorage 'gangsheet.areas'), weil es von Presse/Modell abhängt.
+//   Angemeldet (cloud.js) zusätzlich in der Cloud, zusammen mit den Anbietern aus costs.js.
 // areaSide: welche Seite gerade in den Feldern eingestellt wird
 const AREAS_KEY = 'gangsheet.areas';
 const mock = { areas: loadAreas(), areaSide: 'front', garment: 'tshirt', size: 'M', custom: { w: 51, l: 72 }, color: SHIRT_COLORS[0][1], show: 'both', layers: [], active: -1, drag: null, panels: [], zoom: 1, pan: { x: 0, y: 0 }, panning: null };
@@ -53,6 +54,7 @@ function loadAreas() {
 }
 function saveAreas() {
   try { localStorage.setItem(AREAS_KEY, JSON.stringify(mock.areas)); } catch { /* egal, gilt dann nur bis zum Neuladen */ }
+  if (typeof gsCloudSettingsChanged === 'function') gsCloudSettingsChanged();   // angemeldet: auch in die Cloud (cloud.js)
 }
 // Eigenen Druckbereich anwenden (falls eingestellt). def = berechneter Standard { x, y, w, h }.
 function applyArea(g, key, def) {
